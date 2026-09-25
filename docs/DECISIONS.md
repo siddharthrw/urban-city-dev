@@ -171,3 +171,45 @@ Short log: what we decided, and why. Newest at the bottom.
   tunnel for extraction and relevance checks: fine for SAMPLE documents; revisit before real ones.
 - **Bugs found by tests while building:** Windows `\` in rule file paths broke approve/reject (now
   always `/`); renaming a document dropped its SAMPLE flag (now judged from the file on disk).
+
+## 2026-09-25: M3 design engine + cross-section drawing
+
+- **The engine is pure Python and works in whole centimetres** (`backend\modules\roads\design\`). Integers
+  make "sums exactly to the right-of-way" literally true; floats never enter the arithmetic. No I/O,
+  no LLM, same input -> same output.
+- **Rules give the hard limits; `design_defaults.yaml` gives only preferences** (target widths per
+  option, PCU factors, lanes by road class, what each context tick does). All UNCITED and labelled so.
+  A preference is always clamped into the rules' min/max; it can never override a rule.
+- **Constraints** (`constraints.py`): only active, non-superseded dimension rules are used (proposed
+  and superseded never design anything). Several rules for one element combine strictly (largest min,
+  smallest max); contradicting rules drop the option with the rule ids. A rule's `applies_to` supports
+  `road_class` and `context`; unknown keys mean the rule is skipped, not over-applied. A cycle track is
+  drawn as a single-direction track per side, so the `one_way` rule applies to it. With no rule at all
+  the engine uses an UNCITED fallback minimum and says so.
+- **Three options**, each defined by REQUIRED elements: Balanced (footpath, trees, cycle track, lanes),
+  Traffic priority (footpath + as many lanes as fit), Walking & bus (wide footpaths, trees, bus bays; called
+  "Walking & shade" when there is no bus route). If a road is a little narrow, OPTIONAL elements
+  (median, bus bay, sometimes trees) are shed in a set order and lanes drop to the minimum (Balanced/Walking
+  shed lanes first, Traffic sheds optional elements first), each recorded in the option's notes. If the
+  required elements' minimums still don't fit, the option is DROPPED with the width it needs.
+- **Allocation** is progressive filling: every element starts at its rule minimum, then all grow toward
+  their targets together, then spare width goes by weights up to soft maxima, then into "sink" elements
+  (bounded only by rule maximums). Elements of a kind share one width (all lanes equal, both footpaths
+  equal). An odd spare centimetre goes to single slots, so the only asymmetry possible is 1 cm. If spare
+  width cannot be placed without exceeding a maximum, the option is dropped, never bent.
+- **Two-way roads always have an even lane count (min 2); one-way roads min 1.** Median only on two-way
+  roads wide enough (24 m Balanced, 18 m Traffic).
+- **Demand -> numbers, with provenance** (`demand.py`): the peak linked traffic count (vehicle types
+  x PCU factors, else total vehicles) sets lanes per direction (capped by road class); the peak pedestrian
+  count sets footpath width; linked bus stops count as a bus route. Each input is listed in the result with
+  its source (data / default / user / map) and SAMPLE rows are labelled.
+- **Limits are stated, not hidden:** estimated road width and placeholder rules each produce a warning;
+  waterlogging is noted but not modelled; a manually entered width is marked "manual".
+- **Testing:** hypothesis property tests (250 random roads each, 6-60 m to the centimetre, all classes,
+  one/two-way, any context and demand) prove: exact sums, no rule broken (checked by an independent
+  `check_option`), symmetry within 1 cm, valid lane counts, always an option when the width allows,
+  every empty result explained, determinism. Unit tests tamper with options to prove the checker fails.
+- **UI:** "Design this road" in the road panel opens a design panel (width what-if, context ticks,
+  warnings, inputs used, each option drawn to scale as SVG with metrics, notes, and the rules applied with
+  their sources, plus options that are impossible and why). The SVG rectangle widths are proportional to
+  centimetres (tested).

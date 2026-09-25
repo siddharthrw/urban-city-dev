@@ -4,11 +4,16 @@ M1: road details and search. M1b: links imported data to roads; width surveys ->
 Design endpoints arrive in M3.
 """
 from fastapi import APIRouter, HTTPException, Query
+from pydantic import BaseModel
 
 from core.layers import registry
+from core.rules import loader as rules_loader
+from core.rules.schema import RuleError
 from core.store import catalog, layers
 from core.text import normalize_name
 from modules.roads import hooks, linking
+from modules.roads.design import engine
+from modules.roads.design.demand import Demand, build_demand
 
 NAME = "roads"
 LABEL = "Roads"
@@ -97,3 +102,48 @@ def search(city_id: str, q: str = Query(min_length=2), limit: int = Query(20, le
          "road_class": r["road_class"], "bbox": r["bbox"]}
         for r in rows
     ]
+
+
+# ---------- design (M3) ----------
+
+ROW_MIN_M, ROW_MAX_M = 3.0, 150.0
+
+
+class DesignBody(BaseModel):
+    context: list[str] = []
+    row_m: float | None = None  # what-if width; default is the road's own width
+
+
+def _demand_for(city_id: str, seg_id: str, cfg: dict) -> Demand:
+    def rows(layer_id: str) -> list[dict]:
+        return layers.rows_linked_to(city_id, layer_id, seg_id, limit=200) if catalog.get_layer(city_id, layer_id) else []
+    return build_demand(rows("traffic_counts"), rows("footfall"), rows("bus_stops"), cfg["pcu_factors"])
+
+
+@router.post("/{city_id}/segments/{seg_id}/design")
+def design_segment(city_id: str, seg_id: str, body: DesignBody = DesignBody()):
+    """2-3 standards-based layouts for this segment. The engine (not an LLM) does all the arithmetic."""
+    _require_layer(city_id)
+    seg = layers.get_feature(city_id, LAYER_ID, "seg_id", seg_id)
+    if seg is None:
+        raise HTTPException(404, f"No road segment '{seg_id}'")
+    unknown = sorted(set(body.context) - set(engine.CONTEXT_FLAGS))
+    if unknown:
+        raise HTTPException(422, f"Unknown context: {', '.join(unknown)}. Allowed: {', '.join(engine.CONTEXT_FLAGS)}")
+    row_m, source = seg["width_m"], seg["width_source"]
+    if body.row_m is not None:
+        if not ROW_MIN_M <= body.row_m <= ROW_MAX_M:
+            raise HTTPException(422, f"Width must be between {ROW_MIN_M:g} and {ROW_MAX_M:g} m")
+        if abs(body.row_m - row_m) > 0.005:
+            row_m, source = body.row_m, "manual"
+    try:
+        rules = rules_loader.load_all()
+    except RuleError as e:
+        raise HTTPException(500, f"A rule file has a problem: {e}") from e
+    cfg = engine.load_config()
+    result = engine.design(row_m=row_m, road_class=seg["road_class"], oneway=bool(seg["oneway"]),
+                           context=set(body.context), demand=_demand_for(city_id, seg_id, cfg),
+                           rules=rules, width_source=source, cfg=cfg)
+    result["segment"] = {"seg_id": seg_id, "name": seg.get("display_name"), "road_width_m": seg["width_m"],
+                         "road_width_source": seg["width_source"]}
+    return result

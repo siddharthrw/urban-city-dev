@@ -12,6 +12,7 @@ import {
 import { CONFIDENCE, type WidthSource } from "./core/provenance";
 import { roadsApi, type SearchHit, type SegmentResponse } from "./modules/roads/api";
 import { addRoadsLayer, highlight, keepClearOfPanel, roadAt, setRoadsVisible } from "./modules/roads/roadsLayer";
+import DesignPanel from "./modules/roads/design/DesignPanel";
 import RoadPanel from "./modules/roads/RoadPanel";
 import RoadSearch from "./modules/roads/RoadSearch";
 
@@ -37,6 +38,7 @@ export default function App() {
   const [pickedRoad, setPickedRoad] = useState<SearchHit | null>(null);
   const [feature, setFeature] = useState<ImportedHit | null>(null);
   const [dataVersion, setDataVersion] = useState(0);
+  const [designing, setDesigning] = useState(false);
 
   const city = cities[0];
   const layersRef = useRef(layers);
@@ -133,6 +135,9 @@ export default function App() {
       map.off("mousemove", move);
     };
   }, [map]);
+
+  // A different road (or none) is selected: leave design mode.
+  useEffect(() => setDesigning(false), [segId]);
 
   // Load the clicked segment's details.
   useEffect(() => {
@@ -239,10 +244,16 @@ export default function App() {
 
           <main className="relative flex-1">
             {city && <CityMap city={city} onMapReady={setMap} />}
-            {segId && (
+            {segId && designing && seg && city && (
+              <DesignPanel cityId={city.city_id} segId={segId} roadWidthM={seg.segment.width_m}
+                roadWidthSource={seg.segment.width_source} onBack={() => setDesigning(false)}
+                onClose={() => { setDesigning(false); setSegId(null); setPickedRoad(null); }} />
+            )}
+            {segId && !designing && (
               <RoadPanel data={seg} loading={segLoading} error={segError}
                 onClose={() => { setSegId(null); setPickedRoad(null); }}
-                onZoomToRoad={() => seg?.road && fit(seg.road.bbox)} />
+                onZoomToRoad={() => seg?.road && fit(seg.road.bbox)}
+                onDesign={() => setDesigning(true)} />
             )}
             {feature && featureLayer && (
               <FeaturePanel layer={featureLayer} layerType={layerTypes.find((t) => t.layer_id === feature.layerId)}

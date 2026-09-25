@@ -4,7 +4,7 @@ An operating system for city planning in Indian cities (Chennai first). It grows
 **Phase 1 is the Roads module:** pick a road on the map and get 2–3 standards-based cross-section
 designs, each with a drawing, a plain-language explanation and a citation for every element.
 
-Status: **M2 (standards to rules)** on top of **M1b (data inbox)**: every Chennai road is on the map, clickable, with an *estimated* width
+Status: **M3 (design engine)** on top of **M2 (standards to rules)** on top of **M1b (data inbox)**: every Chennai road is on the map, clickable, with an *estimated* width
 and its OpenStreetMap + official (Greater Chennai Corporation) name side by side. A data inbox turns
 partner files (CSV, Excel, KML, GeoJSON, shapefile, GeoPackage, AutoCAD .dxf) into map layers linked
 to the right road, and a road width survey upgrades the roads it covers to *verified*.
@@ -53,6 +53,13 @@ Try it with the made-up test files in [samples/](samples/) — see `samples/READ
 imported from a file named `SAMPLE_...` is labelled "SAMPLE: made-up test data" everywhere it appears
 (map, layer list, panels), so it can never be mistaken for real data.
 
+## Design a road
+Click any road on the map, then **Design this road**. Optionally change the width (what-if) and tick
+context (school, bus route, metro, waterlogging, market). You get up to three options drawn to scale,
+each with the rules it obeyed, and a clear list of options that don't fit and why. The layouts come from
+a deterministic engine (`backend\modulesoads\design\`), never from the AI. Until the real standards
+arrive it uses the UNCITED placeholder rules and an estimated road width, and says so in every result.
+
 ## Rules and standards
 Open the **Rules** tab. *Rules* lists every rule with its source (cited clause + quote, expert
 judgement, or a clearly labelled UNCITED placeholder) and lets you approve/reject AI-proposed ones.
@@ -69,8 +76,8 @@ Skips regenerable files (tiles, embeddings). Restore = unzip to a folder and poi
 
 ## Test
 ```powershell
-.\.venv\Scripts\python.exe -m pytest    # backend: 259 tests
-cd frontend; npm test                    # frontend: 45 tests
+.\.venv\Scripts\python.exe -m pytest    # backend: 342 tests
+cd frontend; npm test                    # frontend: 65 tests
 ```
 Backend tests use a throwaway temporary data folder, never your real `DATA_DIR`. Most build a small
 made-up road network (`backend\tests\conftest.py`) through the real pipeline code, so they exercise

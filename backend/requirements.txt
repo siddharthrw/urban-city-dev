@@ -30,3 +30,6 @@ sentence-transformers>=3.0
 
 # Dev/test only: generate small PDF fixtures for document-ingestion tests
 fpdf2>=2.7
+
+# M3: property-based tests for the design engine
+hypothesis>=6.100

@@ -14,9 +14,10 @@ type Props = {
   error: string | null;
   onClose: () => void;
   onZoomToRoad: () => void;
+  onDesign?: () => void;
 };
 
-export default function RoadPanel({ data, loading, error, onClose, onZoomToRoad }: Props) {
+export default function RoadPanel({ data, loading, error, onClose, onZoomToRoad, onDesign }: Props) {
   const s = data?.segment;
   const conf = s ? CONFIDENCE[s.width_source] : null;
   const officialLabel = data?.official_name_source?.name ?? "Official";
@@ -96,6 +97,13 @@ export default function RoadPanel({ data, loading, error, onClose, onZoomToRoad 
                 </p>
               )}
             </div>
+
+            {onDesign && (
+              <button onClick={onDesign}
+                className="w-full rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700">
+                Design this road
+              </button>
+            )}
 
             {data!.linked_data.length > 0 && (
               <div className="space-y-2" aria-label="Linked data">

@@ -1,0 +1,96 @@
+# Design-engine settings. Everything here is UNCITED: engineering guesses that decide HOW the
+# engine spends a road's width, not what a standard requires. Standards live in rules/ (the
+# minimum/maximum widths); this file only holds preferences, demand conversion factors and
+# fallbacks. Replace with cited values (IRC:106 PCU factors, IRC:103 pedestrian flows, ...) once
+# the standards documents arrive. Nothing here may override a rule's minimum or maximum.
+
+version: 1
+status: UNCITED
+
+# ---- demand -> lanes / footpath width -------------------------------------------------------
+# Passenger-car units (PCU) per vehicle type, and what one lane carries in the peak hour.
+pcu_factors: { cars: 1.0, two_wheelers: 0.5, autos: 0.8, buses: 3.0, trucks: 3.0, cycles: 0.4 }
+lane_capacity_pcu_per_hour: 1200
+# Pedestrians one metre of clear footpath width carries per hour, and furniture/edge allowance.
+pedestrians_per_metre_per_hour: 1500
+footpath_furniture_allowance_m: 0.5
+
+# ---- lanes by road class ---------------------------------------------------------------------
+# Lanes PER DIRECTION when there is no traffic count (dir_default), and the most the engine will
+# ever draw per direction (dir_cap). A two-way road has 2x, a one-way road 1x.
+classes:
+  motorway:       { dir_default: 3, dir_cap: 4 }
+  trunk:          { dir_default: 2, dir_cap: 3 }
+  primary:        { dir_default: 2, dir_cap: 3 }
+  secondary:      { dir_default: 2, dir_cap: 2 }
+  tertiary:       { dir_default: 1, dir_cap: 2 }
+  unclassified:   { dir_default: 1, dir_cap: 1 }
+  residential:    { dir_default: 1, dir_cap: 1 }
+  living_street:  { dir_default: 1, dir_cap: 1 }
+  motorway_link:  { dir_default: 1, dir_cap: 2 }
+  trunk_link:     { dir_default: 1, dir_cap: 2 }
+  primary_link:   { dir_default: 1, dir_cap: 2 }
+  secondary_link: { dir_default: 1, dir_cap: 1 }
+  tertiary_link:  { dir_default: 1, dir_cap: 1 }
+
+# ---- used ONLY if no active rule exists for an element (and the output says so) ----------------
+fallback_min_m: { footpath: 1.5, tree_strip: 1.0, cycle_track: 1.5, lane: 3.0, median: 0.6, bus_bay: 2.5 }
+
+# ---- what each context tick changes ------------------------------------------------------------
+context_effects:
+  school_nearby: { footpath_target_add_m: 1.0, note: "School nearby: wider footpath target (crossings and speed control are not drawn in M3)." }
+  market:        { footpath_target_add_m: 1.0, note: "Market/shops: wider footpath target for browsing and vending." }
+  metro_nearby:  { footpath_target_add_m: 0.5, note: "Metro station nearby: wider footpath target for station crowds." }
+  bus_route:     { note: "Bus route: bus bays are drawn where the option has room for them." }
+  waterlogging:  { note: "Waterlogging noted, but drainage and sponge elements are not modelled yet (flood module)." }
+
+# ---- the options -------------------------------------------------------------------------------
+# targets_m: what the option WANTS each element to be (clamped into the rules' min/max).
+# required:  elements the option is defined by; if their minimums don't fit, the option is dropped.
+# optional_drop_order: elements shed, in this order, when the road is a little too narrow.
+# lanes_first: shed lanes (down to the minimum) BEFORE shedding optional elements.
+# surplus_weights: how spare width is shared once every element has its target.
+# soft_max_m: preferred ceiling for an element before spare width goes to the sinks.
+# sinks: where any remaining width finally goes (bounded only by rule maximums).
+options:
+  balanced:
+    name: "Balanced (cycle track + shade)"
+    summary: "Footpaths, shade trees and a cycle track on both sides, with a calm two-lane carriageway."
+    max_dir_lanes: 2
+    targets_m: { footpath: 2.5, tree_strip: 1.5, cycle_track: 2.0, lane: 3.5, median: 1.5, bus_bay: 3.0 }
+    required: [footpath, tree_strip, cycle_track, lane]
+    optional: [median, bus_bay]
+    optional_drop_order: [median, bus_bay]
+    lanes_first: true
+    median_from_row_m: 24
+    surplus_weights: { footpath: 3, tree_strip: 2, cycle_track: 1, median: 2 }
+    soft_max_m: { footpath: 4.0, tree_strip: 2.5, cycle_track: 3.0, median: 4.0 }
+    sinks: [footpath, tree_strip, median]
+  traffic:
+    name: "Traffic priority"
+    summary: "As many lanes as the width allows for vehicle throughput; footpaths and trees kept modest."
+    max_dir_lanes: cap
+    targets_m: { footpath: 2.0, tree_strip: 1.2, lane: 3.5, median: 1.5, bus_bay: 3.0 }
+    required: [footpath, lane]
+    optional: [tree_strip, median, bus_bay]
+    optional_drop_order: [median, bus_bay, tree_strip]
+    lanes_first: false
+    median_from_row_m: 18
+    surplus_weights: { footpath: 1, tree_strip: 1, median: 3 }
+    soft_max_m: { footpath: 3.0, tree_strip: 2.0, median: 6.0 }
+    sinks: [median, footpath, tree_strip]
+  walking:
+    name: "Walking & bus"
+    name_without_bus: "Walking & shade"
+    summary: "Generous footpaths and shade, bus bays where there are buses, and fewer traffic lanes."
+    max_dir_lanes: 1
+    targets_m: { footpath: 3.5, tree_strip: 1.5, lane: 3.0, bus_bay: 3.0 }
+    required: [footpath, tree_strip, lane]
+    required_with_bus: [bus_bay]
+    optional: []
+    optional_drop_order: []
+    lanes_first: true
+    median_from_row_m: null
+    surplus_weights: { footpath: 4, tree_strip: 2 }
+    soft_max_m: { footpath: 6.0, tree_strip: 3.0 }
+    sinks: [footpath, tree_strip]

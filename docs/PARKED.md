@@ -44,3 +44,18 @@ Ideas and known gaps we are deliberately not doing yet.
 - **CRS-less files (DXF, some old shapefiles) need the EPSG code typed in.** No CRS-guessing from the
   coordinate range; if that turns out to be common, add a heuristic (e.g. values in the low thousands
   are very likely UTM 44N for Chennai).
+
+## Design engine (known gaps, M3)
+- **No layout for very narrow roads.** Below 9.6 m (two-way) / 6.6 m (one-way) no option satisfies the
+  placeholder minimums, so the result is empty with reasons. A shared-street / one-sided-footpath option
+  for lanes and alleys is a later addition.
+- **Not modelled:** parking, on-street vending, crossings and speed tables (school/market only widen
+  footpaths), turning lanes/junctions, drainage or sponge elements (waterlogging is only noted),
+  cycle tracks on one side only, kerb details, bus-bay length/taper.
+- **All preference numbers are UNCITED** (`design_defaults.yaml`): PCU factors, lane capacity, pedestrian
+  flow, class lane defaults. Replace with cited values with the standards.
+- **Design is per segment,** not per whole named road; divided roads (two one-way carriageways) are still
+  designed as one carriageway each (see divided-roads note above).
+- **Pedestrian counts are assumed to be peak-hour counts** (the sheet has a free-text period).
+- **Only three named options.** Adding an option means adding an entry in `design_defaults.yaml` plus
+  the one line naming it in `engine.design`.
