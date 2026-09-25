@@ -33,3 +33,6 @@ fpdf2>=2.7
 
 # M3: property-based tests for the design engine
 hypothesis>=6.100
+
+# M5: building footprint download (measured widths)
+overturemaps>=0.9

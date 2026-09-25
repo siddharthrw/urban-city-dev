@@ -154,15 +154,25 @@ def to_segments(G, city: dict) -> gpd.GeoDataFrame:
 
 def apply_widths(seg: gpd.GeoDataFrame, city_id: str) -> gpd.GeoDataFrame:
     defaults = widths.load_defaults()
-    overrides = catalog.get_overrides(city_id, LAYER_ID, "width_m")
+    verified_overrides = catalog.get_overrides(city_id, LAYER_ID, "width_m")
+    measured_overrides = catalog.get_overrides(city_id, LAYER_ID, "width_m_measured")
     out_w, out_src, out_det = [], [], []
     for sid, cls, lanes, oneway in zip(seg["seg_id"], seg["road_class"], seg["lanes_osm"], seg["oneway"]):
         est = widths.estimate(cls, None if pd.isna(lanes) else int(lanes), bool(oneway), defaults)
         ver = None
-        if sid in overrides:
-            o = overrides[sid]
+        if sid in verified_overrides:
+            o = verified_overrides[sid]
             ver = widths.Width(o["value"], "verified", o["detail"] or "Verified (manual entry)")
-        w = widths.resolve(est, verified=ver)
+        meas = None
+        if sid in measured_overrides:
+            o = measured_overrides[sid]
+            try:
+                d = json.loads(o["detail"] or "{}")
+                conf = f" ({d.get('valid_samples', '?')} samples, IQR {d.get('iqr_m', '?')} m)"
+            except Exception:
+                conf = ""
+            meas = widths.Width(o["value"], "measured", f"Measured from building footprints.{conf}")
+        w = widths.resolve(est, measured=meas, verified=ver)
         out_w.append(w.width_m)
         out_src.append(w.source)
         out_det.append(w.detail)

@@ -1,10 +1,10 @@
 """Roads module: pick a road, get 2-3 standards-based cross-section designs.
 
 M1: road details and search. M1b: links imported data to roads; width surveys -> verified widths.
-Design endpoints arrive in M3.
+Design endpoints arrive in M3. M5: set verified width from the UI.
 """
 from fastapi import APIRouter, HTTPException, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from core.layers import registry
 from core.rules import loader as rules_loader
@@ -219,3 +219,36 @@ def design_pdf(city_id: str, seg_id: str,
         content=pdf_bytes, media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="design_{safe_name}.pdf"'},
     )
+
+
+# ---------- verified width (M5) ----------
+
+class VerifiedWidthBody(BaseModel):
+    width_m: float = Field(..., ge=ROW_MIN_M, le=ROW_MAX_M)
+    note: str = ""
+
+
+@router.post("/{city_id}/segments/{seg_id}/width/verify")
+def set_verified_width(city_id: str, seg_id: str, body: VerifiedWidthBody):
+    """Save a human-verified width for this segment.
+
+    Writes to feature_overrides so the value survives layer rebuilds.
+    Triggers refresh_widths() to update the roads layer and tiles immediately.
+    Returns the updated segment (width_m, width_source = 'verified', width_source_detail).
+    """
+    from modules.roads.pipelines.build_roads import refresh_widths
+
+    _require_layer(city_id)
+    seg = layers.get_feature(city_id, LAYER_ID, "seg_id", seg_id)
+    if seg is None:
+        raise HTTPException(404, f"No road segment '{seg_id}'")
+    note = body.note.strip() or f"Verified manually, entered in the design panel ({body.width_m} m)"
+    catalog.set_verified_width(city_id, LAYER_ID, seg_id, body.width_m, note)
+    refresh_widths(city_id)
+    updated = layers.get_feature(city_id, LAYER_ID, "seg_id", seg_id)
+    return {
+        "seg_id": seg_id,
+        "width_m": updated["width_m"],
+        "width_source": updated["width_source"],
+        "width_source_detail": updated.get("width_source_detail"),
+    }

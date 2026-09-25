@@ -65,9 +65,23 @@ export type ExplainResult = DesignResult & {
   explanation_warnings: string[];
 };
 
+export type VerifyWidthResult = {
+  seg_id: string;
+  width_m: number;
+  width_source: "verified";
+  width_source_detail: string | null;
+};
+
 export const designApi = {
   design: (cityId: string, segId: string, body: { context: string[]; row_m?: number }) =>
     sendJson<DesignResult>(`/api/roads/${cityId}/segments/${encodeURIComponent(segId)}/design`, "POST", body),
+
+  setVerifiedWidth: (cityId: string, segId: string, body: { width_m: number; note?: string }) =>
+    sendJson<VerifyWidthResult>(
+      `/api/roads/${cityId}/segments/${encodeURIComponent(segId)}/width/verify`,
+      "POST",
+      body,
+    ),
 
   explain: (cityId: string, segId: string, body: { context: string[]; row_m?: number }) =>
     sendJson<ExplainResult>(

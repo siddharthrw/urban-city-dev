@@ -4,6 +4,9 @@ import { CONFIDENCE } from "../../../core/provenance";
 import CrossSection from "./CrossSection";
 import { CONTEXT_FLAGS, designApi, type DesignOption, type DesignResult, type ExplainResult } from "./api";
 
+const CONFIDENCE_KEY = (s: string): keyof typeof CONFIDENCE =>
+  s in CONFIDENCE ? (s as keyof typeof CONFIDENCE) : "estimated";
+
 const SOURCE_CHIP: Record<string, string> = {
   data: "bg-green-100 text-green-800",
   default: "bg-slate-200 text-slate-700",
@@ -34,6 +37,8 @@ export default function DesignPanel({ cityId, segId, roadWidthM, roadWidthSource
   const [explaining, setExplaining] = useState(false);
   const [explainError, setExplainError] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [verifiedWidth, setVerifiedWidth] = useState<{ width_m: number; source: string } | null>(null);
 
   const run = useCallback(
     async (ctx: string[], widthText: string) => {
@@ -90,11 +95,32 @@ export default function DesignPanel({ cityId, segId, roadWidthM, roadWidthSource
     }
   }, [cityId, segId, context, width]);
 
+  const runSaveVerified = useCallback(async () => {
+    const w = Number(width);
+    if (!Number.isFinite(w) || w < 3 || w > 150) {
+      setError("Width must be a number between 3 and 150 metres.");
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await designApi.setVerifiedWidth(cityId, segId, { width_m: w });
+      setVerifiedWidth({ width_m: res.width_m, source: res.width_source });
+      setWidth(String(res.width_m));
+      await run(context, String(res.width_m));
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  }, [cityId, segId, width, context, run]);
+
   useEffect(() => {
     setWidth(String(roadWidthM));
     setContext([]);
     setExplanation(null);
     setExplainError(null);
+    setVerifiedWidth(null);
     run([], String(roadWidthM));
     // Re-run only when a different road segment is opened.
   }, [segId]);
@@ -114,15 +140,34 @@ export default function DesignPanel({ cityId, segId, roadWidthM, roadWidthSource
       <div className="space-y-4 overflow-y-auto px-4 py-3 text-sm">
         <section className="rounded-md border border-slate-200 p-3" aria-label="Design inputs">
           <div className="flex flex-wrap items-end gap-4">
-            <label className="text-sm">
+            <div className="text-sm">
               <div className="mb-1 text-xs text-slate-500">Right-of-way (m)</div>
-              <input value={width} onChange={(e) => setWidth(e.target.value)} inputMode="decimal" aria-label="Right-of-way width in metres"
-                className="w-24 rounded border border-slate-300 px-2 py-1.5" />
-              <div className="mt-1 text-xs text-slate-500">
-                Road's own width: {roadWidthM} m{" "}
-                <span className={`rounded px-1.5 py-0.5 font-semibold uppercase ${CONFIDENCE[roadWidthSource].badge}`}>{CONFIDENCE[roadWidthSource].label}</span>
+              <div className="flex items-center gap-2">
+                <input value={width} onChange={(e) => setWidth(e.target.value)} inputMode="decimal" aria-label="Right-of-way width in metres"
+                  className="w-24 rounded border border-slate-300 px-2 py-1.5" />
+                {(() => {
+                  const currentSrc = verifiedWidth?.source ?? roadWidthSource;
+                  const currentW = verifiedWidth?.width_m ?? roadWidthM;
+                  const canVerify = currentSrc !== "verified" || Math.abs(Number(width) - currentW) > 0.05;
+                  return canVerify ? (
+                    <button onClick={runSaveVerified} disabled={saving} aria-label="Set as verified width"
+                      title="Save this width as a verified (surveyed) measurement. It will survive road layer rebuilds."
+                      className="rounded border border-green-300 bg-green-50 px-2 py-1.5 text-xs text-green-700 hover:bg-green-100 disabled:opacity-50">
+                      {saving ? "Saving…" : "Set as verified ✓"}
+                    </button>
+                  ) : null;
+                })()}
               </div>
-            </label>
+              <div className="mt-1 text-xs text-slate-500">
+                {(() => {
+                  const displayW = verifiedWidth?.width_m ?? roadWidthM;
+                  const displaySrc = CONFIDENCE_KEY(verifiedWidth?.source ?? roadWidthSource);
+                  return <>Road's own width: {displayW} m{" "}
+                    <span className={`rounded px-1.5 py-0.5 font-semibold uppercase ${CONFIDENCE[displaySrc].badge}`}>{CONFIDENCE[displaySrc].label}</span>
+                  </>;
+                })()}
+              </div>
+            </div>
             <fieldset className="flex flex-wrap gap-x-4 gap-y-1">
               <legend className="mb-1 text-xs text-slate-500">Context</legend>
               {CONTEXT_FLAGS.map((f) => (

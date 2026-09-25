@@ -324,6 +324,16 @@ def replace_overrides(city_id: str, layer_id: str, attribute: str, source_id: st
                 [city_id, layer_id, fid, attribute, value, detail, source_id, now])
 
 
+def set_verified_width(city_id: str, layer_id: str, feature_id: str,
+                       width_m: float, note: str) -> None:
+    """Write a single human-verified width override. Survives layer rebuilds."""
+    with db.connect() as con:
+        con.execute(
+            "INSERT OR REPLACE INTO feature_overrides VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            [city_id, layer_id, feature_id, "width_m", width_m,
+             note or "Verified (manual entry)", None, _now()])
+
+
 # ---------- imports ----------
 
 def save_import(rec: dict) -> None:
