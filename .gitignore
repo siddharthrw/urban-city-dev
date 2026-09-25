@@ -1,0 +1,33 @@
+# Secrets
+.env
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.hypothesis/
+*.egg-info/
+
+# Node
+node_modules/
+frontend/dist/
+
+# Data never lives in the repo (it goes under DATA_DIR). Belt and braces:
+*.duckdb
+*.duckdb.wal
+*.parquet
+*.pmtiles
+*.graphml
+*.gpkg
+*.shp
+*.kml
+*.kmz
+*.npy
+data/
+
+# Editors / OS
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store

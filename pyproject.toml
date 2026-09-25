@@ -1,0 +1,4 @@
+# Tool config only. Python dependencies are in backend\requirements.txt.
+[tool.pytest.ini_options]
+pythonpath = ["backend"]
+testpaths = ["backend/tests"]

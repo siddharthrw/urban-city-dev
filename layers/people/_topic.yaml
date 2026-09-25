@@ -1,0 +1,7 @@
+topic: people
+label: People
+order: 2
+description: >
+  People and movement: traffic counts by vehicle type, pedestrian/footfall counts,
+  bus routes/stops/ridership (MTC), metro stations/ridership (CMRL), cycle usage,
+  ward population.
