@@ -9,6 +9,7 @@ from core.config import APP_VERSION, settings
 from core.inbox import api as inbox_api
 from core.layers import registry
 from core.llm import client as llm
+from core.rules import api as rules_api
 from core.store import catalog, layers, paths
 
 MODULES = modules.discover()
@@ -26,6 +27,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="City Planning OS", version=APP_VERSION, lifespan=lifespan)
 
 app.include_router(inbox_api.router)
+app.include_router(rules_api.router)
 for m in MODULES:
     app.include_router(m.router)
 

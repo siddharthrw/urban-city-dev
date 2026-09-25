@@ -22,7 +22,28 @@ def test_unknown_llm_provider(monkeypatch, tmp_path):
         config.load_settings()
 
 
+@pytest.mark.parametrize("host, external", [
+    ("http://localhost:11434", False),
+    ("http://127.0.0.1:11434", False),
+    ("https://tuner-slip-arm-nathan.trycloudflare.com", True),   # a tunnel to another machine
+    ("http://192.168.1.20:11434", True),
+])
+def test_remote_ollama_counts_as_external(monkeypatch, tmp_path, host, external):
+    monkeypatch.setenv("DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("LLM_PROVIDER", "ollama")
+    monkeypatch.setenv("OLLAMA_HOST", host)
+    assert config.load_settings().llm_is_external is external
+
+
+def test_nim_is_always_external(monkeypatch, tmp_path):
+    monkeypatch.setenv("DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("LLM_PROVIDER", "nim")
+    monkeypatch.setenv("OLLAMA_HOST", "http://localhost:11434")
+    assert config.load_settings().llm_is_external is True
+
+
 def test_defaults_are_local(monkeypatch, tmp_path):
+    monkeypatch.delenv("OLLAMA_HOST", raising=False)
     monkeypatch.setenv("DATA_DIR", str(tmp_path))
     monkeypatch.delenv("LLM_PROVIDER", raising=False)
     s = config.load_settings()

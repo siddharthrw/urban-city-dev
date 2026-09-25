@@ -4,7 +4,7 @@ An operating system for city planning in Indian cities (Chennai first). It grows
 **Phase 1 is the Roads module:** pick a road on the map and get 2–3 standards-based cross-section
 designs, each with a drawing, a plain-language explanation and a citation for every element.
 
-Status: **M1b (data inbox)**: every Chennai road is on the map, clickable, with an *estimated* width
+Status: **M2 (standards to rules)** on top of **M1b (data inbox)**: every Chennai road is on the map, clickable, with an *estimated* width
 and its OpenStreetMap + official (Greater Chennai Corporation) name side by side. A data inbox turns
 partner files (CSV, Excel, KML, GeoJSON, shapefile, GeoPackage, AutoCAD .dxf) into map layers linked
 to the right road, and a road width survey upgrades the roads it covers to *verified*.
@@ -53,6 +53,14 @@ Try it with the made-up test files in [samples/](samples/) — see `samples/READ
 imported from a file named `SAMPLE_...` is labelled "SAMPLE: made-up test data" everywhere it appears
 (map, layer list, panels), so it can never be mistaken for real data.
 
+## Rules and standards
+Open the **Rules** tab. *Rules* lists every rule with its source (cited clause + quote, expert
+judgement, or a clearly labelled UNCITED placeholder) and lets you approve/reject AI-proposed ones.
+*Documents* takes a standards PDF (mark it active or superseded), embeds it, lets the AI propose rules
+for you to review, and answers questions with a relevance-checked citation. *Expert sheet* loads the
+If / Then / Because sheet. Try it with `samples\SAMPLE_standards_excerpt.pdf` and `samples\SAMPLE_expert_rules.csv`.
+The AI runs on `OLLAMA_HOST` (default local); if it is another machine, the header says so.
+
 ## Back up the data
 ```powershell
 .\.venv\Scripts\python.exe scripts\backup.py      # -> D:\citydata_backups\citydata_<time>.zip
@@ -61,7 +69,7 @@ Skips regenerable files (tiles, embeddings). Restore = unzip to a folder and poi
 
 ## Test
 ```powershell
-.\.venv\Scripts\python.exe -m pytest    # backend: 155 tests
+.\.venv\Scripts\python.exe -m pytest    # backend: 259 tests
 cd frontend; npm test                    # frontend: 45 tests
 ```
 Backend tests use a throwaway temporary data folder, never your real `DATA_DIR`. Most build a small

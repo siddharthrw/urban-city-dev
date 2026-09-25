@@ -5,6 +5,7 @@ Everything else asks this module for paths and switches; nothing else reads .env
 import os
 from dataclasses import dataclass
 from pathlib import Path
+from urllib.parse import urlparse
 
 from dotenv import load_dotenv
 
@@ -35,7 +36,12 @@ class Settings:
 
     @property
     def llm_is_external(self) -> bool:
-        return self.llm_provider != "ollama"
+        """True if prompt text leaves this machine: NIM, or an Ollama server that isn't local
+        (e.g. a tunnel to another computer)."""
+        if self.llm_provider != "ollama":
+            return True
+        host = urlparse(self.ollama_host).hostname or ""
+        return host not in ("localhost", "127.0.0.1", "::1")
 
 
 def load_settings() -> Settings:

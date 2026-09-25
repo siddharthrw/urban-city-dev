@@ -53,7 +53,12 @@ CREATE TABLE IF NOT EXISTS sources (
     sha256        VARCHAR,
     bytes         BIGINT,
     notes         VARCHAR,
-    registered_at TIMESTAMP
+    registered_at TIMESTAMP,
+    -- Standards-document metadata (topic='standards'); NULL for everything else.
+    -- "Superseded documents are never cited": authority is what a rule's citation checks.
+    authority     VARCHAR,      -- active | superseded (a document's status, distinct from a rule's authority)
+    doc_year      INTEGER,
+    jurisdiction  VARCHAR       -- e.g. "India", "Tamil Nadu", "Chennai"
 );
 
 CREATE TABLE IF NOT EXISTS layers (
@@ -126,6 +131,13 @@ def init_data_dir() -> None:
         db.install_extensions()
     with db.connect() as con:
         con.execute(SCHEMA)
+        _migrate(con)
+
+
+def _migrate(con) -> None:
+    """Non-destructive column additions for catalogs created before they existed."""
+    for col, typ in [("authority", "VARCHAR"), ("doc_year", "INTEGER"), ("jurisdiction", "VARCHAR")]:
+        con.execute(f"ALTER TABLE sources ADD COLUMN IF NOT EXISTS {col} {typ}")
 
 
 def upsert_city(city: dict, topics: list[str]) -> None:
@@ -163,15 +175,19 @@ def list_cities() -> list[dict]:
 def register_source(
     *, source_id: str, file: Path, name: str, origin: str, licence: str,
     received_at: date, topic: str, city_id: str | None = None, notes: str = "",
+    authority: str | None = None, doc_year: int | None = None, jurisdiction: str | None = None,
 ) -> None:
-    """Add (or refresh) one raw file in the provenance manifest, with its checksum."""
+    """Add (or refresh) one raw file in the provenance manifest, with its checksum.
+    authority/doc_year/jurisdiction are for standards documents (topic='standards'); a document's
+    authority is active|superseded (its own status), distinct from a rule's source.authority."""
     with db.connect() as con:
         con.execute(
             """
-            INSERT OR REPLACE INTO sources VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT OR REPLACE INTO sources VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             [source_id, city_id, topic, name, origin, received_at, licence,
-             paths.relative(file), sha256_file(file), file.stat().st_size, notes, _now()],
+             paths.relative(file), sha256_file(file), file.stat().st_size, notes, _now(),
+             authority, doc_year, jurisdiction],
         )
 
 
@@ -263,6 +279,13 @@ def get_source(source_id: str) -> dict | None:
     out = dict(zip(cols, row))
     out["abs_path"] = settings.data_dir / out["path"]
     return out
+
+
+def rename_source(source_id: str, name: str) -> None:
+    """Give a registered file a human-chosen display name (e.g. a document's real title),
+    kept separate from its filename on disk."""
+    with db.connect() as con:
+        con.execute("UPDATE sources SET name = ? WHERE source_id = ?", [name, source_id])
 
 
 def list_sources(city_id: str | None = None) -> list[dict]:

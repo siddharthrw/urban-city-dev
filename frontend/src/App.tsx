@@ -4,6 +4,7 @@ import { api, type City, type Health, type LayerInfo, type SystemInfo, type Topi
 import FeaturePanel from "./core/FeaturePanel";
 import { inboxApi, type LayerType } from "./core/inbox/api";
 import InboxPage from "./core/inbox/InboxPage";
+import RulesPage from "./core/rules/RulesPage";
 import CityMap from "./core/map/CityMap";
 import {
   addImportedLayers, queryImported, refreshImported, setImportedVisible, type ImportedHit,
@@ -15,7 +16,7 @@ import RoadPanel from "./modules/roads/RoadPanel";
 import RoadSearch from "./modules/roads/RoadSearch";
 
 type Bbox = [number, number, number, number];
-type Page = "map" | "inbox";
+type Page = "map" | "inbox" | "rules";
 
 export default function App() {
   const [page, setPage] = useState<Page>("map");
@@ -176,10 +177,10 @@ export default function App() {
       <nav className="flex items-center gap-1 border-b border-slate-200 bg-white px-4">
         <span className="mr-4 py-2 text-base font-semibold">City Planning OS</span>
         <span className="mr-4 text-sm text-slate-500">{city ? `${city.name}, ${city.state}` : "Loading…"}</span>
-        {(["map", "inbox"] as Page[]).map((p) => (
+        {(["map", "inbox", "rules"] as Page[]).map((p) => (
           <button key={p} onClick={() => setPage(p)}
             className={`border-b-2 px-3 py-2 text-sm ${page === p ? "border-blue-600 font-medium text-blue-700" : "border-transparent text-slate-600 hover:text-slate-900"}`}>
-            {p === "map" ? "Map" : "Data inbox"}
+            {p === "map" ? "Map" : p === "inbox" ? "Data inbox" : "Rules"}
           </button>
         ))}
         <div className="ml-auto flex items-center gap-4 text-xs text-slate-500">
@@ -265,6 +266,7 @@ export default function App() {
           <InboxPage cityId={city.city_id} topics={topics} system={system} dataDir={health?.data_dir}
             onDataChanged={() => setDataVersion((v) => v + 1)} onShowOnMap={showOnMap} />
         )}
+        {page === "rules" && <RulesPage />}
       </div>
     </div>
   );

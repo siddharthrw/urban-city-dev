@@ -30,7 +30,7 @@ class LLMInfo:
 def info(cfg: Settings = settings) -> LLMInfo:
     if cfg.llm_provider == "nim":
         return LLMInfo("nim", cfg.nvidia_model, True)
-    return LLMInfo("ollama", cfg.ollama_model, False)
+    return LLMInfo("ollama", cfg.ollama_model, cfg.llm_is_external)
 
 
 def _messages(prompt: str, system: str) -> list[dict]:

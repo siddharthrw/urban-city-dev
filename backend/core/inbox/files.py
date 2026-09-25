@@ -35,9 +35,12 @@ def _topic_of(rel: Path) -> str:
     return rel.parts[1] if len(rel.parts) > 2 else "unsorted"
 
 
-def register(path: Path, *, topic: str, city_id: str, origin: str, licence: str = "",
-             received: date | None = None, notes: str = "") -> str:
-    r"""Register a file under raw\ and return its source_id (stable for the same path + content)."""
+def register(path: Path, *, topic: str, city_id: str | None = None, origin: str, licence: str = "",
+             received: date | None = None, notes: str = "", authority: str | None = None,
+             doc_year: int | None = None, jurisdiction: str | None = None) -> str:
+    r"""Register a file under raw\ and return its source_id (stable for the same path + content).
+    authority/doc_year/jurisdiction are for standards documents; city_id is optional because a
+    national standard (e.g. an IRC code) applies to no one city in particular."""
     path = path.resolve()
     if settings.data_dir / "raw" not in path.parents:
         raise ValueError(f"{path} is not under {settings.data_dir / 'raw'}")
@@ -49,11 +52,14 @@ def register(path: Path, *, topic: str, city_id: str, origin: str, licence: str 
         name=path.name + (" (SAMPLE: made-up test data)" if sample else ""),
         origin=origin, licence=licence or ("n/a (made-up test data)" if sample else "unknown: ask the sender"),
         received_at=received or date.today(), notes=notes,
+        authority=authority, doc_year=doc_year, jurisdiction=jurisdiction,
     )
     return source_id
 
 
-def save_upload(data: bytes, filename: str, *, topic: str, city_id: str, origin: str = "uploaded in the app") -> str:
+def save_upload(data: bytes, filename: str, *, topic: str, city_id: str | None = None,
+                origin: str = "uploaded in the app", authority: str | None = None,
+                doc_year: int | None = None, jurisdiction: str | None = None) -> str:
     fname = safe_filename(filename)
     d = paths.raw_dir(topic, "uploads", date.today().isoformat())
     d.mkdir(parents=True, exist_ok=True)
@@ -64,7 +70,8 @@ def save_upload(data: bytes, filename: str, *, topic: str, city_id: str, origin:
         target = d / f"{Path(fname).stem} ({n}){Path(fname).suffix}"
     if not target.exists():
         target.write_bytes(data)
-    return register(target, topic=topic, city_id=city_id, origin=origin)
+    return register(target, topic=topic, city_id=city_id, origin=origin,
+                    authority=authority, doc_year=doc_year, jurisdiction=jurisdiction)
 
 
 def unregistered() -> list[dict]:

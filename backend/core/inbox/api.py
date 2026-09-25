@@ -52,7 +52,7 @@ def list_files(city_id: str):
             "source_id": s["source_id"], "name": s["name"], "topic": s["topic"], "path": s["path"],
             "origin": s["origin"], "licence": s["licence"], "received_at": s["received_at"],
             "bytes": s["bytes"], "kind": readers.kind_of(Path(s["path"])),
-            "sample": files.is_sample(s["name"]),
+            "sample": files.is_sample(Path(s["path"]).name),  # the file on disk, not a (renamable) display name
             "system": not s["source_id"].startswith("file-"),  # built by pipelines, not the inbox
             "imports": imps.get(s["source_id"], []),
         })

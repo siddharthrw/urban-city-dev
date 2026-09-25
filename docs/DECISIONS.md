@@ -139,3 +139,35 @@ Short log: what we decided, and why. Newest at the bottom.
   OSM-unnamed street with only an official name, a one-way street with merged OSM classes and a
   width tag), instead of mocking the pipeline's internals. All inbox/roads/pipeline tests run against
   it, so they exercise the same code path the app does, without any network access.
+
+## 2026-09-25: M2 standards -> rules
+
+- **Rules are YAML under `rulesctive\` and `rules\proposed\` in the repo** (not DATA_DIR): they are
+  reviewable, versioned decisions, not data. Two kinds: `dimension` (min/max metres for footpath, lane,
+  cycle_track, tree_strip, median, bus_bay, verge, crossing) and `conditional` (If/Then/Because).
+- **Every rule has a `source.authority`:** `primary` (needs doc_id + page: a real citation), `superseded`
+  (also needs a citation; never usable), `expert` (the partner's own judgement) or `placeholder`.
+  The validator refuses a placeholder whose statement doesn't say "UNCITED"/"placeholder", so a guess
+  can't be mistaken for a standard even when read on its own.
+- **Seed set:** 7 UNCITED placeholder dimension rules (`road_elements_placeholder.yaml`), to be replaced
+  when the standards document arrives.
+- **LLM extraction may only point, never assert.** Each proposed rule must carry a quote that is checked
+  to appear (near-verbatim) in the source chunk; ungrounded quotes are dropped. Only chunks that look
+  like they state a dimension go to the LLM. Proposals land in `rules\proposed\`; a person approves
+  (moves to `active`, own file) or rejects (deleted). Superseded documents can't be extracted from.
+- **Retrieval fixes the old project's weakness:** superseded documents are excluded outright (not just
+  down-ranked), and the top similarity hit is checked by the LLM for relevance; if none applies the
+  answer is "No applicable provision found", not a plausible wrong citation.
+- **Expert sheet (If/Then/Because CSV/XLSX) reuses the inbox's readers, header detection, column
+  auto-mapping and validation**, and goes straight to `active` (no LLM involved, so no review step).
+- **Documents:** PDF -> page-numbered chunks (pypdf) -> local sentence-transformers embeddings
+  (all-MiniLM-L6-v2, ~90 MB downloaded once), stored under `DATA_DIR\documents\standards\<source>\`.
+  `sources` gained `authority` (active|superseded), `doc_year`, `jurisdiction` via a non-destructive
+  ALTER TABLE migration.
+- **A remote Ollama counts as external.** `llm_is_external` is now true for NIM *or* an Ollama host that
+  isn't localhost, so pointing `OLLAMA_HOST` at a tunnel (as done today, a temporary trycloudflare URL
+  in the gitignored `.env`) shows the "prompt text leaves this machine" warning. Tests pin
+  `OLLAMA_HOST` to localhost so a developer's `.env` never redirects them. Standards text goes over that
+  tunnel for extraction and relevance checks: fine for SAMPLE documents; revisit before real ones.
+- **Bugs found by tests while building:** Windows `\` in rule file paths broke approve/reject (now
+  always `/`); renaming a document dropped its SAMPLE flag (now judged from the file on disk).

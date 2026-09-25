@@ -23,3 +23,10 @@ pmtiles>=3.4
 # M1b: data inbox + name matching
 rapidfuzz>=3.9
 openpyxl>=3.1
+
+# M2: standards documents -> rules
+pypdf>=5.0
+sentence-transformers>=3.0
+
+# Dev/test only: generate small PDF fixtures for document-ingestion tests
+fpdf2>=2.7

@@ -13,6 +13,7 @@ from pathlib import Path
 
 os.environ["DATA_DIR"] = tempfile.mkdtemp(prefix="citydata_test_")
 os.environ["LLM_PROVIDER"] = "ollama"
+os.environ["OLLAMA_HOST"] = "http://localhost:11434"  # never let a developer's .env point tests at a remote LLM
 os.environ.pop("NVIDIA_API_KEY", None)
 
 import networkx as nx  # noqa: E402
@@ -104,3 +105,27 @@ def client(world):
 
 
 SAMPLES = Path(__file__).resolve().parents[2] / "samples"
+
+
+@pytest.fixture
+def rules_dir(tmp_path, monkeypatch):
+    """Points core.rules.loader's active/ and proposed/ folders at a throwaway temp directory,
+    so tests never read or write the repo's real rules/ (including the real placeholder set)."""
+    import core.rules.loader as loader
+    root = tmp_path / "rules"
+    monkeypatch.setattr(loader, "RULES_ROOT", root)
+    monkeypatch.setattr(loader, "ACTIVE_DIR", root / "active")
+    monkeypatch.setattr(loader, "PROPOSED_DIR", root / "proposed")
+    return root
+
+
+def make_pdf(path: Path, pages: list[str]) -> Path:
+    """A small real PDF with one page of text per string in `pages`, for ingestion tests."""
+    from fpdf import FPDF
+    pdf = FPDF()
+    for text in pages:
+        pdf.add_page()
+        pdf.set_font("Helvetica", size=11)
+        pdf.multi_cell(0, 6, text)
+    pdf.output(str(path))
+    return path

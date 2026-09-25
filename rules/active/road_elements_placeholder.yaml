@@ -1,0 +1,93 @@
+# PLACEHOLDER rule set: engineering guesses, not from any standard.
+#
+# Every rule below has source.authority: placeholder and its statement says "UNCITED" (both
+# are required by the schema, so a placeholder rule can never be silently mistaken for a real
+# citation, even if read on its own in an exported PDF or a design explanation).
+#
+# Replace each with a cited rule (source.authority: primary, with doc_id + page) once the
+# standards document arrives -- see docs/DECISIONS.md and rules/proposed/ for the extraction
+# workflow that helps turn a standards PDF into rules like these, for a human to review.
+#
+# Covers the elements named in the brief: footpath, lane, cycle track, tree strip, median, bus bay.
+
+- rule_id: footpath_min_width
+  status: active
+  category: dimension
+  element: footpath
+  statement: "UNCITED placeholder: footpaths should be at least 1.8 m wide (pedestrian-only; excludes any furniture/tree-strip zone)."
+  value:
+    min_m: 1.8
+  source:
+    authority: placeholder
+    detail: "Typical practice; verify against IRC:103 or the Chennai street design guidelines once received."
+
+- rule_id: lane_width_standard
+  status: active
+  category: dimension
+  element: lane
+  statement: "UNCITED placeholder: a standard traffic lane should be 3.0-3.5 m wide."
+  value:
+    min_m: 3.0
+    max_m: 3.5
+  source:
+    authority: placeholder
+    detail: "Typical practice for urban arterial/sub-arterial lanes; verify against IRC:86."
+
+- rule_id: cycle_track_min_width
+  status: active
+  category: dimension
+  element: cycle_track
+  statement: "UNCITED placeholder: a one-directional cycle track should be at least 2.0 m wide; a two-way track at least 2.5 m."
+  applies_to:
+    context: [one_way]
+  value:
+    min_m: 2.0
+  source:
+    authority: placeholder
+    detail: "Typical practice; verify against IRC or NUTP cycling infrastructure guidance."
+
+- rule_id: cycle_track_min_width_two_way
+  status: active
+  category: dimension
+  element: cycle_track
+  statement: "UNCITED placeholder: a two-way cycle track should be at least 2.5 m wide."
+  applies_to:
+    context: [two_way]
+  value:
+    min_m: 2.5
+  source:
+    authority: placeholder
+    detail: "Typical practice; verify against IRC or NUTP cycling infrastructure guidance."
+
+- rule_id: tree_strip_min_width
+  status: active
+  category: dimension
+  element: tree_strip
+  statement: "UNCITED placeholder: a tree/planting strip should be at least 1.2 m wide, to give a street tree enough root space."
+  value:
+    min_m: 1.2
+  source:
+    authority: placeholder
+    detail: "Typical practice for urban street trees; verify against a Chennai/IRC tree-planting guide once received."
+
+- rule_id: median_min_width
+  status: active
+  category: dimension
+  element: median
+  statement: "UNCITED placeholder: a raised median (for pedestrian refuge and/or planting) should be at least 1.2 m wide."
+  value:
+    min_m: 1.2
+  source:
+    authority: placeholder
+    detail: "Typical practice; a median under this width should be a painted/flush median instead. Verify against IRC:86."
+
+- rule_id: bus_bay_min_width
+  status: active
+  category: dimension
+  element: bus_bay
+  statement: "UNCITED placeholder: a bus bay (where a bus pulls out of the traffic lane) should be at least 3.0 m wide, in addition to the running lane."
+  value:
+    min_m: 3.0
+  source:
+    authority: placeholder
+    detail: "Typical practice; verify bay length/taper requirements too once the standards document arrives (not modelled yet)."
