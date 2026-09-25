@@ -28,7 +28,20 @@ export type SystemInfo = {
   llm_is_external: boolean;
 };
 
-async function getJson<T>(url: string): Promise<T> {
+export type LayerInfo = {
+  layer_id: string;
+  topic: string;
+  label: string;
+  geometry_type: string;
+  feature_count: number;
+  built_at: string;
+  id_column: string | null;
+  tiles_url: string | null;
+  tiles: { minzoom: number; maxzoom: number } | null;
+  sources: { source_id: string; name: string; origin: string; licence: string; received_at: string }[];
+};
+
+export async function getJson<T>(url: string): Promise<T> {
   const res = await fetch(url);
   if (!res.ok) throw new Error(`${url}: HTTP ${res.status}`);
   return res.json() as Promise<T>;
@@ -39,4 +52,5 @@ export const api = {
   system: () => getJson<SystemInfo>("/api/system"),
   cities: () => getJson<City[]>("/api/cities"),
   topics: () => getJson<Topic[]>("/api/topics"),
+  layers: (cityId: string) => getJson<LayerInfo[]>(`/api/cities/${cityId}/layers`),
 };

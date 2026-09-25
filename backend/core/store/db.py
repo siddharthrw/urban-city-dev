@@ -22,6 +22,17 @@ def connect(read_only: bool = False) -> Iterator[duckdb.DuckDBPyConnection]:
         con.close()
 
 
+@contextmanager
+def connect_memory() -> Iterator[duckdb.DuckDBPyConnection]:
+    """In-memory connection for querying layer files (GeoParquet). Never locks the catalog."""
+    con = duckdb.connect()
+    try:
+        con.execute("LOAD spatial")
+        yield con
+    finally:
+        con.close()
+
+
 def install_extensions() -> None:
     """One-time download of the spatial extension into DuckDB's local extension cache."""
     con = duckdb.connect(str(settings.catalog_path))

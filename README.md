@@ -4,7 +4,7 @@ An operating system for city planning in Indian cities (Chennai first). It grows
 **Phase 1 is the Roads module:** pick a road on the map and get 2–3 standards-based cross-section
 designs, each with a drawing, a plain-language explanation and a citation for every element.
 
-Status: **M0 (skeleton)**. See `docs/DECISIONS.md` for what was decided and why,
+Status: **M1 (city map)**: every Chennai road on the map, clickable, with length and an *estimated* width. See `docs/DECISIONS.md` for what was decided and why,
 and `docs/PARKED.md` for known gaps we are deliberately not doing yet.
 
 ## Principles (short version)
@@ -29,6 +29,20 @@ Check `DATA_DIR` in `.env` (default `D:\citydata`).
 ```powershell
 cd frontend; npm run dev       # UI on http://localhost:5173
 ```
+
+## Build the roads layer
+```powershell
+.\scripts\build_roads.ps1                     # downloads today's OSM data for Chennai, builds layer + tiles
+.\scripts\build_roads.ps1 --date 2026-09-25   # rebuild from an existing download, no network
+```
+Writes `DATA_DIR\cities\chennai\roads\` (GeoParquet, PMTiles, `roads_build_report.json`) and registers
+the raw OSM files in the catalog. Re-running replaces the output cleanly.
+
+## Back up the data
+```powershell
+.\.venv\Scripts\python.exe scripts\backup.py      # -> D:\citydata_backups\citydata_<time>.zip
+```
+Skips regenerable files (tiles, embeddings). Restore = unzip to a folder and point `DATA_DIR` at it.
 
 ## Test
 ```powershell

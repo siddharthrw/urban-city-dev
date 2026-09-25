@@ -36,5 +36,19 @@ def layer_defs() -> list[dict]:
     return out
 
 
+def layer_def(layer_id: str) -> dict:
+    for d in layer_defs():
+        if d.get("layer_id") == layer_id:
+            return d
+    raise LookupError(f"No layer definition for '{layer_id}' under {LAYERS_ROOT}")
+
+
+def city_config(city_id: str) -> dict:
+    for c in city_configs():
+        if c["city_id"] == city_id:
+            return c
+    raise LookupError(f"No city config for '{city_id}' under {CITIES_ROOT}")
+
+
 def city_configs() -> list[dict]:
     return [_load(p) for p in sorted(CITIES_ROOT.glob("*.yaml"))]

@@ -1,0 +1,34 @@
+layer_id: roads
+topic: roads
+label: Roads (by width confidence)
+geometry_type: LineString
+id_column: seg_id
+build_script: backend/modules/roads/pipelines/build_roads.py
+sources:
+  - OpenStreetMap via Overpass (osmnx), ODbL
+tiles:
+  minzoom: 10
+  maxzoom: 15
+  # Lower zooms carry only the bigger roads so tiles stay small.
+  zoom_filter:
+    10: "road_class IN ('motorway','trunk','primary','secondary','motorway_link','trunk_link','primary_link')"
+    12: "road_class NOT IN ('residential','living_street','unclassified')"
+    13: "TRUE"
+  properties: [seg_id, name, road_class, width_m, width_source]
+
+schema:
+  city_id:             { type: string,  description: City this feature belongs to }
+  seg_id:              { type: string,  description: "Stable segment id: '<smaller OSM node>-<larger OSM node>-<key>'" }
+  osm_way_ids:         { type: "list<int64>", description: OSM way(s) this segment was cut from }
+  name:                { type: string,  nullable: true, description: OSM name (null = unnamed) }
+  ref:                 { type: string,  nullable: true, description: "OSM ref, e.g. NH48" }
+  road_class:          { type: string,  description: "OSM highway class (motorway ... living_street)" }
+  length_m:            { type: double,  description: "Length in metres, computed in UTM 44N (EPSG:32644)" }
+  oneway:              { type: bool }
+  lanes_osm:           { type: int,     nullable: true, description: OSM lanes tag if a whole number }
+  osm_width_hint:      { type: string,  nullable: true, description: "Raw OSM width tag. HINT ONLY: often carriageway, not ROW" }
+  sidewalk_osm:        { type: string,  nullable: true }
+  width_m:             { type: double,  description: Right-of-way width in metres (best available) }
+  width_source:        { type: string,  description: "estimated | measured | verified" }
+  width_source_detail: { type: string,  description: How width_m was obtained, in words }
+  geometry:            { type: LineString, crs: "EPSG:4326" }

@@ -1,0 +1,38 @@
+# Level-1 ESTIMATED right-of-way (ROW) by OSM road class.
+#
+# ROW = property line to property line: footpaths + carriageway + median.
+# Used only when nothing better (measured / verified) exists, and always labelled "estimated".
+#
+# STATUS: every value below is UNCITED. They are engineering guesses at typical EXISTING Chennai
+# widths, not standards. Replace each with a cited value (source_doc + page) when the standards
+# document arrives, or supersede with level-2 measured widths (M5).
+#
+# For reference only (to verify against the actual document before citing):
+# IRC:86-1983 recommends PLANNED ROW of roughly 50-60 m arterial, 30-40 m sub-arterial,
+# 20-30 m collector, 10-20 m local. Existing Chennai roads are mostly narrower than these,
+# so they are not used as estimates of what is on the ground.
+
+version: 1
+status: UNCITED
+
+classes:
+  motorway:       { row_m: 45, side_allowance_m: 3.0, citation: UNCITED }
+  trunk:          { row_m: 30, side_allowance_m: 3.0, citation: UNCITED }
+  primary:        { row_m: 24, side_allowance_m: 3.0, citation: UNCITED }
+  secondary:      { row_m: 18, side_allowance_m: 2.5, citation: UNCITED }
+  tertiary:       { row_m: 15, side_allowance_m: 2.0, citation: UNCITED }
+  unclassified:   { row_m: 10, side_allowance_m: 1.5, citation: UNCITED }
+  residential:    { row_m: 8,  side_allowance_m: 1.5, citation: UNCITED }
+  living_street:  { row_m: 6,  side_allowance_m: 1.0, citation: UNCITED }
+  # Slip roads / ramps: a single carriageway, no footpaths assumed.
+  motorway_link:  { row_m: 8,  side_allowance_m: 0.5, citation: UNCITED }
+  trunk_link:     { row_m: 8,  side_allowance_m: 0.5, citation: UNCITED }
+  primary_link:   { row_m: 8,  side_allowance_m: 1.0, citation: UNCITED }
+  secondary_link: { row_m: 7,  side_allowance_m: 1.0, citation: UNCITED }
+  tertiary_link:  { row_m: 7,  side_allowance_m: 1.0, citation: UNCITED }
+
+# When OSM gives a lane count, estimate ROW = lanes x lane_width + 2 x side_allowance,
+# and use it instead of the class default. Still "estimated".
+lanes_refinement:
+  lane_width_m: 3.5
+  citation: UNCITED

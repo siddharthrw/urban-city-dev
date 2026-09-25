@@ -6,3 +6,6 @@ center: [80.2500, 13.0600]   # lon, lat
 zoom: 11
 utm_epsg: 32644              # UTM zone 44N, used for lengths and widths in metres
 osm_place: "Chennai, Tamil Nadu, India"
+# Pinned OSM boundary: relation 1766358, "Chennai" admin boundary, 431 km2 in UTM
+# (Greater Chennai Corporation is ~426 km2). Pinned so a geocoder change can't swap the area.
+osm_boundary_id: "R1766358"

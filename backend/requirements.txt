@@ -8,3 +8,13 @@ python-dotenv>=1.0
 # Dev / tests
 pytest>=8.0
 httpx>=0.27
+mapbox-vector-tile>=2.0
+
+# M1: geo pipeline + vector tiles
+osmnx>=2.0
+geopandas>=1.0
+shapely>=2.0
+pyproj>=3.6
+pyogrio>=0.9
+pyarrow>=17
+pmtiles>=3.4
