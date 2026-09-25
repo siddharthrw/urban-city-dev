@@ -1,4 +1,4 @@
-import { sendJson } from "../../../core/api";
+import { ApiError, sendJson } from "../../../core/api";
 
 export type ElementKind = "footpath" | "tree_strip" | "cycle_track" | "bus_bay" | "lane" | "median";
 
@@ -59,7 +59,40 @@ export const CONTEXT_FLAGS: { id: string; label: string }[] = [
   { id: "market", label: "Market / shops" },
 ];
 
+export type ExplainResult = DesignResult & {
+  explanations: Record<string, string>;
+  comparison: string;
+  explanation_warnings: string[];
+};
+
 export const designApi = {
   design: (cityId: string, segId: string, body: { context: string[]; row_m?: number }) =>
     sendJson<DesignResult>(`/api/roads/${cityId}/segments/${encodeURIComponent(segId)}/design`, "POST", body),
+
+  explain: (cityId: string, segId: string, body: { context: string[]; row_m?: number }) =>
+    sendJson<ExplainResult>(
+      `/api/roads/${cityId}/segments/${encodeURIComponent(segId)}/design/explain`,
+      "POST",
+      body,
+    ),
+
+  downloadPdf: (cityId: string, segId: string, params: { row_m?: number; context?: string[] }) => {
+    const url = new URL(
+      `/api/roads/${cityId}/segments/${encodeURIComponent(segId)}/design/pdf`,
+      window.location.href,
+    );
+    if (params.row_m !== undefined) url.searchParams.set("row_m", String(params.row_m));
+    for (const c of params.context ?? []) url.searchParams.append("context", c);
+    return fetch(url.toString()).then(async (res) => {
+      if (!res.ok) {
+        let detail = `HTTP ${res.status}`;
+        try {
+          const body = await res.json();
+          if (body?.detail) detail = typeof body.detail === "string" ? body.detail : JSON.stringify(body.detail);
+        } catch { /* not JSON */ }
+        throw new ApiError(res.status, `PDF export failed: ${detail}`);
+      }
+      return res.blob();
+    });
+  },
 };

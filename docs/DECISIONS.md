@@ -172,6 +172,27 @@ Short log: what we decided, and why. Newest at the bottom.
 - **Bugs found by tests while building:** Windows `\` in rule file paths broke approve/reject (now
   always `/`); renaming a document dropped its SAMPLE flag (now judged from the file on disk).
 
+## 2026-09-25: M4 LLM explanations + PDF export
+
+- **Explanations are a separate step from design**, called on demand by the user ("Explain options").
+  The engine result arrives instantly; the LLM explanation is slower, so keeping them separate avoids
+  making every design call slow.
+- **LLM may only cite rule IDs the engine actually used**, validated in code after the LLM responds.
+  Any rule-ID-like token in the output that isn't in `result["rules"]` is flagged in a warning and
+  left in the text. This prevents the LLM from citing rules from a different road or a document
+  it knows from training. (Validated in `explain.py::unknown_citations`.)
+- **Graceful LLM failure:** `explain()` catches `LLMError` and returns empty explanations with a
+  warning. The design panel and the PDF endpoint still work; they just show less text. The PDF is
+  always generated.
+- **Monkeypatching rule:** tests that mock the LLM patch `modules.roads.design.explain.chat_json`
+  (where the name is used), not `core.llm.client.chat_json` (where it is defined). Patching the
+  source module has no effect on already-imported names. Learned from the first test run.
+- **PDF export** (`pdf.py`, fpdf2): coloured rectangles proportional to element widths, legend,
+  metrics, LLM explanation if available, rules applied (with authority badge), warnings box. fpdf2
+  compresses content aggressively (~2 KB for a typical design); size threshold in tests is 1,500 B.
+- **Design + explain shared helper `_design_for`** in `module.py` deduplicates the validation +
+  design + segment logic that both `design_segment`, `explain_segment` and `design_pdf` need.
+
 ## 2026-09-25: M3 design engine + cross-section drawing
 
 - **The engine is pure Python and works in whole centimetres** (`backend\modules\roads\design\`). Integers

@@ -14,6 +14,8 @@ from core.text import normalize_name
 from modules.roads import hooks, linking
 from modules.roads.design import engine
 from modules.roads.design.demand import Demand, build_demand
+from modules.roads.design.explain import explain as _explain
+from modules.roads.design.pdf import build_pdf
 
 NAME = "roads"
 LABEL = "Roads"
@@ -147,3 +149,73 @@ def design_segment(city_id: str, seg_id: str, body: DesignBody = DesignBody()):
     result["segment"] = {"seg_id": seg_id, "name": seg.get("display_name"), "road_width_m": seg["width_m"],
                          "road_width_source": seg["width_source"]}
     return result
+
+
+# ---------- explain (M4) ----------
+
+class ExplainBody(BaseModel):
+    context: list[str] = []
+    row_m: float | None = None
+
+
+def _design_for(city_id: str, seg_id: str, context: list[str], row_m_override: float | None) -> tuple[dict, dict]:
+    """Shared helper: validate, run design, attach segment. Returns (seg, result)."""
+    seg = layers.get_feature(city_id, LAYER_ID, "seg_id", seg_id)
+    if seg is None:
+        raise HTTPException(404, f"No road segment '{seg_id}'")
+    unknown = sorted(set(context) - set(engine.CONTEXT_FLAGS))
+    if unknown:
+        raise HTTPException(422, f"Unknown context: {', '.join(unknown)}. Allowed: {', '.join(engine.CONTEXT_FLAGS)}")
+    row_m, source = seg["width_m"], seg["width_source"]
+    if row_m_override is not None:
+        if not ROW_MIN_M <= row_m_override <= ROW_MAX_M:
+            raise HTTPException(422, f"Width must be between {ROW_MIN_M:g} and {ROW_MAX_M:g} m")
+        if abs(row_m_override - row_m) > 0.005:
+            row_m, source = row_m_override, "manual"
+    try:
+        rules = rules_loader.load_all()
+    except RuleError as e:
+        raise HTTPException(500, f"A rule file has a problem: {e}") from e
+    cfg = engine.load_config()
+    result = engine.design(row_m=row_m, road_class=seg["road_class"], oneway=bool(seg["oneway"]),
+                           context=set(context), demand=_demand_for(city_id, seg_id, cfg),
+                           rules=rules, width_source=source, cfg=cfg)
+    result["segment"] = {"seg_id": seg_id, "name": seg.get("display_name"), "road_width_m": seg["width_m"],
+                         "road_width_source": seg["width_source"]}
+    return seg, result
+
+
+@router.post("/{city_id}/segments/{seg_id}/design/explain")
+def explain_segment(city_id: str, seg_id: str, body: ExplainBody = ExplainBody()):
+    """Run the design engine, then ask the LLM to explain each option in plain English.
+
+    The engine result is deterministic; only the text explanations use the LLM.
+    If the LLM is unavailable, the design result is returned with empty explanations
+    and an explanation_warnings entry.
+    """
+    _require_layer(city_id)
+    _, result = _design_for(city_id, seg_id, body.context, body.row_m)
+    exp = _explain(result)
+    return {**result, "explanations": exp["explanations"], "comparison": exp["comparison"],
+            "explanation_warnings": exp["warnings"]}
+
+
+@router.get("/{city_id}/segments/{seg_id}/design/pdf")
+def design_pdf(city_id: str, seg_id: str,
+               row_m: float | None = Query(None),
+               context: list[str] = Query(default=[])):
+    """Download a PDF report for this road's design.
+
+    Includes LLM explanations when the LLM is reachable; still generates the PDF if it is not.
+    """
+    from fastapi.responses import Response
+
+    _require_layer(city_id)
+    seg, result = _design_for(city_id, seg_id, list(context), row_m)
+    exp = _explain(result)
+    pdf_bytes = build_pdf(result, exp)
+    safe_name = (seg.get("display_name") or seg_id).replace(" ", "_").replace("/", "_")
+    return Response(
+        content=pdf_bytes, media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="design_{safe_name}.pdf"'},
+    )

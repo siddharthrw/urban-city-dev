@@ -4,7 +4,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { designApi, type DesignElement, type DesignOption, type DesignResult } from "./api";
 import DesignPanel from "./DesignPanel";
 
-vi.mock("./api", async (orig) => ({ ...(await orig<typeof import("./api")>()), designApi: { design: vi.fn() } }));
+vi.mock("./api", async (orig) => ({
+  ...(await orig<typeof import("./api")>()),
+  designApi: { design: vi.fn(), explain: vi.fn(), downloadPdf: vi.fn() },
+}));
 
 const e = (kind: DesignElement["kind"], cm: number, side: DesignElement["side"] = "left"): DesignElement => ({
   kind, label: kind, side, width_cm: cm, width_m: cm / 100, rule_ids: ["footpath_min_width"], fallback_minimum: false,
@@ -34,6 +37,8 @@ const props = { cityId: "chennai", segId: "1-2-0", roadWidthM: 9.6, roadWidthSou
 
 beforeEach(() => {
   vi.mocked(designApi.design).mockReset().mockResolvedValue(RESULT);
+  vi.mocked(designApi.explain).mockReset();
+  vi.mocked(designApi.downloadPdf).mockReset();
   props.onBack.mockReset();
   props.onClose.mockReset();
 });
@@ -141,5 +146,90 @@ describe("DesignPanel", () => {
     render(<DesignPanel {...props} />);
     expect(await screen.findByText(/No layout satisfies the rules/)).toBeInTheDocument();
     expect(screen.getByText(/Needs at least 16 m/)).toBeInTheDocument();
+  });
+
+  it("shows explain and export PDF buttons after design loads", async () => {
+    render(<DesignPanel {...props} />);
+    await screen.findByText("Traffic priority");
+    expect(screen.getByRole("button", { name: "Explain options" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Export PDF" })).toBeInTheDocument();
+  });
+
+  it("calls explain and shows comparison and per-option explanations", async () => {
+    const user = userEvent.setup();
+    const explainResult = {
+      ...RESULT,
+      explanations: { traffic: "This layout maximises vehicle throughput on the road." },
+      comparison: "The traffic option is best for this arterial road.",
+      explanation_warnings: [],
+    };
+    vi.mocked(designApi.explain).mockResolvedValue(explainResult);
+    render(<DesignPanel {...props} />);
+    await screen.findByText("Traffic priority");
+    await user.click(screen.getByRole("button", { name: "Explain options" }));
+    await waitFor(() => {
+      expect(screen.getByText("The traffic option is best for this arterial road.")).toBeInTheDocument();
+    });
+    expect(screen.getByText("This layout maximises vehicle throughput on the road.")).toBeInTheDocument();
+    expect(designApi.explain).toHaveBeenCalledWith("chennai", "1-2-0", { context: [], row_m: 9.6 });
+  });
+
+  it("shows explanation_warnings from the LLM", async () => {
+    const user = userEvent.setup();
+    vi.mocked(designApi.explain).mockResolvedValue({
+      ...RESULT,
+      explanations: { traffic: "Some text." },
+      comparison: "",
+      explanation_warnings: ["Explanation for 'traffic' cited unknown rule IDs: irc_103."],
+    });
+    render(<DesignPanel {...props} />);
+    await screen.findByText("Traffic priority");
+    await user.click(screen.getByRole("button", { name: "Explain options" }));
+    await waitFor(() => expect(screen.getByText(/irc_103/)).toBeInTheDocument());
+  });
+
+  it("shows an explain error when the call fails", async () => {
+    const user = userEvent.setup();
+    vi.mocked(designApi.explain).mockRejectedValue(new Error("LLM unavailable"));
+    render(<DesignPanel {...props} />);
+    await screen.findByText("Traffic priority");
+    await user.click(screen.getByRole("button", { name: "Explain options" }));
+    await waitFor(() => expect(screen.getByText("LLM unavailable")).toBeInTheDocument());
+  });
+
+  it("resets explanation when Update design is clicked", async () => {
+    const user = userEvent.setup();
+    vi.mocked(designApi.explain).mockResolvedValue({
+      ...RESULT,
+      explanations: { traffic: "Some explanation." },
+      comparison: "Use traffic.",
+      explanation_warnings: [],
+    });
+    render(<DesignPanel {...props} />);
+    await screen.findByText("Traffic priority");
+    await user.click(screen.getByRole("button", { name: "Explain options" }));
+    await waitFor(() => expect(screen.getByText("Use traffic.")).toBeInTheDocument());
+    // Change width and update design: explanation should disappear
+    const widthInput = screen.getByLabelText("Right-of-way width in metres");
+    await user.clear(widthInput);
+    await user.type(widthInput, "18");
+    await user.click(screen.getByRole("button", { name: "Update design" }));
+    await waitFor(() => expect(screen.queryByText("Use traffic.")).not.toBeInTheDocument());
+  });
+
+  it("calls downloadPdf when Export PDF is clicked", async () => {
+    const user = userEvent.setup();
+    vi.mocked(designApi.downloadPdf).mockResolvedValue(new Blob(["%PDF-1.4"], { type: "application/pdf" }));
+    // stub browser download API
+    const createObjectURL = vi.fn().mockReturnValue("blob:test");
+    const revokeObjectURL = vi.fn();
+    vi.stubGlobal("URL", { createObjectURL, revokeObjectURL });
+    render(<DesignPanel {...props} />);
+    await screen.findByText("Traffic priority");
+    await user.click(screen.getByRole("button", { name: "Export PDF" }));
+    await waitFor(() => expect(designApi.downloadPdf).toHaveBeenCalledWith("chennai", "1-2-0", {
+      row_m: 9.6, context: [],
+    }));
+    vi.unstubAllGlobals();
   });
 });

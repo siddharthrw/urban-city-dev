@@ -1,4 +1,4 @@
-# City Planning OS
+﻿# City Planning OS
 
 An operating system for city planning in Indian cities (Chennai first). It grows one module at a time.
 **Phase 1 is the Roads module:** pick a road on the map and get 2–3 standards-based cross-section
@@ -57,7 +57,7 @@ imported from a file named `SAMPLE_...` is labelled "SAMPLE: made-up test data" 
 Click any road on the map, then **Design this road**. Optionally change the width (what-if) and tick
 context (school, bus route, metro, waterlogging, market). You get up to three options drawn to scale,
 each with the rules it obeyed, and a clear list of options that don't fit and why. The layouts come from
-a deterministic engine (`backend\modulesoads\design\`), never from the AI. Until the real standards
+a deterministic engine (`backend/modules/roads/design/`), never from the AI. Until the real standards
 arrive it uses the UNCITED placeholder rules and an estimated road width, and says so in every result.
 
 ## Rules and standards
@@ -76,8 +76,8 @@ Skips regenerable files (tiles, embeddings). Restore = unzip to a folder and poi
 
 ## Test
 ```powershell
-.\.venv\Scripts\python.exe -m pytest    # backend: 342 tests
-cd frontend; npm test                    # frontend: 65 tests
+.\.venv\Scripts\python.exe -m pytest    # backend: ~375 tests
+cd frontend; npm test                    # frontend: 71 tests
 ```
 Backend tests use a throwaway temporary data folder, never your real `DATA_DIR`. Most build a small
 made-up road network (`backend\tests\conftest.py`) through the real pipeline code, so they exercise
