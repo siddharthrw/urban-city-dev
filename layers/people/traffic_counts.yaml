@@ -1,0 +1,60 @@
+layer_id: traffic_counts
+topic: people
+label: Traffic counts
+kind: imported
+link_to: roads
+color: "#7c3aed"
+description: Vehicle counts by type at a location or on a road (e.g. peak hour classified counts).
+summary_fields: [count_date, time_period, total_vehicles, cars, two_wheelers, buses]
+fields:
+  count_date:
+    type: date
+    label: Count date
+    aliases: [date, count date, survey date, day]
+  time_period:
+    type: string
+    label: Time / period
+    aliases: [time, period, peak, peak hour, hour, time period, session, slot]
+  direction:
+    type: string
+    label: Direction
+    aliases: [direction, dir, towards, bound]
+  cars:
+    type: int
+    label: Cars
+    min: 0
+    aliases: [car, cars, lmv, four wheeler, 4w, jeep car]
+  two_wheelers:
+    type: int
+    label: Two-wheelers
+    min: 0
+    aliases: [two wheeler, two wheelers, 2w, bike, bikes, motorcycle, scooter, mtw]
+  autos:
+    type: int
+    label: Autos
+    min: 0
+    aliases: [auto, autos, auto rickshaw, three wheeler, 3w]
+  buses:
+    type: int
+    label: Buses
+    min: 0
+    aliases: [bus, buses, mtc bus]
+  trucks:
+    type: int
+    label: Trucks / LCV
+    min: 0
+    aliases: [truck, trucks, lcv, hcv, goods, lorry]
+  cycles:
+    type: int
+    label: Cycles
+    min: 0
+    aliases: [cycle, cycles, bicycle, bicycles]
+  total_vehicles:
+    type: int
+    label: Total vehicles
+    min: 0
+    aliases: [total, total vehicles, total count, vehicles, volume]
+  notes:
+    type: string
+    label: Notes
+    aliases: [notes, remarks, comment]

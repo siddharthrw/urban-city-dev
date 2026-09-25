@@ -1,0 +1,36 @@
+layer_id: width_surveys
+topic: roads
+label: Road width surveys
+kind: imported
+link_to: roads
+color: "#16a34a"
+description: >
+  Surveyed right-of-way widths. Every linked road segment is upgraded to VERIFIED width.
+effects: [verified_width]
+summary_fields: [width_m, survey_date, surveyed_by]
+fields:
+  width_m:
+    type: float
+    label: Right-of-way width (m)
+    required: true
+    min: 2
+    max: 150
+    aliases: [width, row, row width, right of way, right of way width, road width, total width, width m, width in m, width mtr]
+  carriageway_width_m:
+    type: float
+    label: Carriageway width (m)
+    min: 2
+    max: 100
+    aliases: [carriageway, carriageway width, cw width, pavement width, black top width]
+  survey_date:
+    type: date
+    label: Survey date
+    aliases: [date, survey date, date of survey, surveyed on]
+  surveyed_by:
+    type: string
+    label: Surveyed by
+    aliases: [surveyor, surveyed by, by, agency, source]
+  notes:
+    type: string
+    label: Notes
+    aliases: [notes, remarks, comment, comments]

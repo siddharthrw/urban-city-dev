@@ -1,0 +1,26 @@
+layer_id: bus_stops
+topic: surroundings
+label: Bus stops
+kind: imported
+link_to: roads
+color: "#ea580c"
+description: Bus stops (e.g. MTC), optionally with routes and daily boardings.
+summary_fields: [stop_name, routes, daily_boardings]
+fields:
+  stop_name:
+    type: string
+    label: Stop name
+    aliases: [stop, stop name, bus stop, bus stop name, name, stage]
+  routes:
+    type: string
+    label: Routes
+    aliases: [routes, route, route numbers, route no, buses]
+  daily_boardings:
+    type: int
+    label: Daily boardings
+    min: 0
+    aliases: [boardings, daily boardings, ridership, passengers, daily ridership]
+  notes:
+    type: string
+    label: Notes
+    aliases: [notes, remarks]

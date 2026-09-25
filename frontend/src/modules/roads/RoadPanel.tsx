@@ -1,7 +1,7 @@
+import { formatLength, formatValue, nameMatchLabel } from "../../core/format";
 import { CONFIDENCE } from "../../core/provenance";
 import type { SegmentResponse } from "./api";
 
-const km = (m: number) => (m >= 1000 ? `${(m / 1000).toFixed(2)} km` : `${Math.round(m)} m`);
 const CLASS_LABEL: Record<string, string> = {
   motorway: "Motorway", trunk: "Trunk road", primary: "Primary (main road)", secondary: "Secondary",
   tertiary: "Tertiary", unclassified: "Minor road", residential: "Residential street",
@@ -19,12 +19,13 @@ type Props = {
 export default function RoadPanel({ data, loading, error, onClose, onZoomToRoad }: Props) {
   const s = data?.segment;
   const conf = s ? CONFIDENCE[s.width_source] : null;
+  const officialLabel = data?.official_name_source?.name ?? "Official";
 
   return (
-    <div className="absolute right-3 top-3 z-10 w-96 max-w-[calc(100%-1.5rem)] rounded-lg border border-slate-200 bg-white shadow-lg">
+    <div className="absolute right-3 top-3 z-10 max-h-[calc(100%-1.5rem)] w-96 max-w-[calc(100%-1.5rem)] overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-lg">
       <div className="flex items-start justify-between border-b border-slate-200 px-4 py-3">
         <div>
-          <h2 className="text-base font-semibold">{s ? s.name ?? "Unnamed road" : "Road"}</h2>
+          <h2 className="text-base font-semibold">{s ? s.display_name ?? "Unnamed road" : "Road"}</h2>
           {s && (
             <p className="text-xs text-slate-500">
               {CLASS_LABEL[s.road_class] ?? s.road_class.replace("_", " ")}
@@ -42,14 +43,24 @@ export default function RoadPanel({ data, loading, error, onClose, onZoomToRoad 
         {error && <p className="text-red-600">{error}</p>}
         {s && conf && (
           <>
+            {(s.name || s.name_official) && (
+              <dl className="grid grid-cols-[7rem_1fr] gap-y-1" aria-label="Names">
+                <dt className="text-slate-500">OSM name</dt>
+                <dd>{s.name ?? <span className="text-slate-400">none</span>}</dd>
+                <dt className="text-slate-500">{officialLabel}</dt>
+                <dd>{s.name_official ?? <span className="text-slate-400">none</span>}</dd>
+                <dd className="col-span-2 text-xs text-slate-400">{nameMatchLabel(s.name_match)}</dd>
+              </dl>
+            )}
+
             <dl className="grid grid-cols-[7rem_1fr] gap-y-1">
               <dt className="text-slate-500">This segment</dt>
-              <dd>{km(s.length_m)}</dd>
+              <dd>{formatLength(s.length_m)}</dd>
               {data?.road && (
                 <>
                   <dt className="text-slate-500">Whole road</dt>
                   <dd>
-                    {km(data.road.length_m)} in {data.road.segments} segments{" "}
+                    {formatLength(data.road.length_m)} in {data.road.segments} segments{" "}
                     <button onClick={onZoomToRoad} className="text-blue-600 hover:underline">
                       show
                     </button>
@@ -86,9 +97,39 @@ export default function RoadPanel({ data, loading, error, onClose, onZoomToRoad 
               )}
             </div>
 
+            {data!.linked_data.length > 0 && (
+              <div className="space-y-2" aria-label="Linked data">
+                <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Data linked to this road</div>
+                {data!.linked_data.map((d) => (
+                  <div key={d.layer_id} className="rounded-md border border-slate-200 p-2">
+                    <div className="mb-1 flex items-center gap-2 text-sm font-medium">
+                      <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: d.color ?? "#475569" }} />
+                      {d.label} <span className="text-xs text-slate-400">({d.rows.length})</span>
+                    </div>
+                    <ul className="space-y-1 text-xs">
+                      {d.rows.map((r) => (
+                        <li key={`${r.import_id}-${r.row_no}`} className="text-slate-700">
+                          {r.is_sample === true && (
+                            <span className="mr-1 rounded bg-orange-100 px-1 font-semibold text-orange-800">SAMPLE</span>
+                          )}
+                          {d.summary_fields
+                            .filter((f) => r[f.field] != null)
+                            .map((f) => `${f.label}: ${formatValue(r[f.field])}`)
+                            .join(" · ")}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            )}
+
             <p className="text-xs text-slate-400">
-              Geometry, name and type: {data?.geometry_source?.name} ({data?.geometry_source?.licence}), downloaded{" "}
-              {data?.geometry_source?.downloaded}. Segment {s.seg_id}.
+              Geometry and type: {data?.geometry_source?.name} ({data?.geometry_source?.licence}), downloaded{" "}
+              {data?.geometry_source?.downloaded}.
+              {data?.official_name_source &&
+                ` Official name: ${data.official_name_source.name} (${data.official_name_source.licence}).`}{" "}
+              Segment {s.seg_id}.
             </p>
           </>
         )}

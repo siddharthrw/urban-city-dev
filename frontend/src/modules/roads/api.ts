@@ -6,6 +6,11 @@ export type Segment = {
   seg_id: string;
   osm_way_ids: number[];
   name: string | null;
+  name_official: string | null;
+  official_road_id: string | null;
+  name_match: string;
+  display_name: string | null;
+  display_name_source: "osm" | "official" | null;
   ref: string | null;
   road_class: string;
   oneway: boolean;
@@ -19,10 +24,20 @@ export type Segment = {
   bbox: [number, number, number, number];
 };
 
+export type LinkedData = {
+  layer_id: string;
+  label: string;
+  color: string | null;
+  summary_fields: { field: string; label: string }[];
+  rows: Record<string, unknown>[];
+};
+
 export type SegmentResponse = {
   segment: Segment;
   road: { name: string; segments: number; length_m: number; bbox: [number, number, number, number] } | null;
   geometry_source: { name: string; licence: string; downloaded: string } | null;
+  official_name_source: { name: string; licence: string; received: string } | null;
+  linked_data: LinkedData[];
 };
 
 export type SearchHit = {

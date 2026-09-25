@@ -23,6 +23,11 @@ class Settings:
     data_dir: Path
     llm_provider: str
     api_port: int
+    ollama_host: str = "http://localhost:11434"
+    ollama_model: str = "qwen2.5:7b"
+    nvidia_api_key: str = ""
+    nvidia_model: str = "openai/gpt-oss-20b"
+    nvidia_max_tokens: int = 4096
 
     @property
     def catalog_path(self) -> Path:
@@ -48,10 +53,16 @@ def load_settings() -> Settings:
     if provider not in ("ollama", "nim"):
         raise ConfigError(f"LLM_PROVIDER must be 'ollama' or 'nim', got '{provider}'.")
 
+    env = os.environ.get
     return Settings(
         data_dir=data_dir,
         llm_provider=provider,
-        api_port=int(os.environ.get("API_PORT", "8000")),
+        api_port=int(env("API_PORT", "8000")),
+        ollama_host=env("OLLAMA_HOST", "http://localhost:11434"),
+        ollama_model=env("OLLAMA_MODEL", "qwen2.5:7b"),
+        nvidia_api_key=env("NVIDIA_API_KEY", ""),
+        nvidia_model=env("NVIDIA_MODEL", "openai/gpt-oss-20b"),
+        nvidia_max_tokens=int(env("NVIDIA_MAX_TOKENS", "4096")),
     )
 
 

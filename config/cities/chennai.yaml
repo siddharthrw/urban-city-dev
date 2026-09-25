@@ -9,3 +9,11 @@ osm_place: "Chennai, Tamil Nadu, India"
 # Pinned OSM boundary: relation 1766358, "Chennai" admin boundary, 431 km2 in UTM
 # (Greater Chennai Corporation is ~426 km2). Pinned so a geocoder change can't swap the area.
 osm_boundary_id: "R1766358"
+
+# Official road names, matched onto OSM segments by the roads pipeline.
+# The newest registered source whose id starts with source_prefix is used.
+official_road_names:
+  label: Greater Chennai Corporation
+  source_prefix: gcc-chennai-road-centerline
+  name_field: road_name
+  id_field: road_id

@@ -6,6 +6,7 @@ id_column: seg_id
 build_script: backend/modules/roads/pipelines/build_roads.py
 sources:
   - OpenStreetMap via Overpass (osmnx), ODbL
+  - Official road names (city config official_road_names; Chennai = GCC centerline, public domain)
 tiles:
   minzoom: 10
   maxzoom: 15
@@ -14,13 +15,19 @@ tiles:
     10: "road_class IN ('motorway','trunk','primary','secondary','motorway_link','trunk_link','primary_link')"
     12: "road_class NOT IN ('residential','living_street','unclassified')"
     13: "TRUE"
-  properties: [seg_id, name, road_class, width_m, width_source]
+  properties: [seg_id, display_name, road_class, width_m, width_source]
 
 schema:
   city_id:             { type: string,  description: City this feature belongs to }
   seg_id:              { type: string,  description: "Stable segment id: '<smaller OSM node>-<larger OSM node>-<key>'" }
   osm_way_ids:         { type: "list<int64>", description: OSM way(s) this segment was cut from }
-  name:                { type: string,  nullable: true, description: OSM name (null = unnamed) }
+  name:                { type: string,  nullable: true, description: OSM name (null = unnamed in OSM) }
+  name_official:       { type: string,  nullable: true, description: "Official name (e.g. GCC) of the official line running along this segment" }
+  official_road_id:    { type: string,  nullable: true, description: Id of that line in the official source }
+  name_match:          { type: string,  description: "same | similar | different | osm_only | official_only | none" }
+  display_name:        { type: string,  nullable: true, description: "OSM name, else official name. Used by map + search" }
+  display_name_source: { type: string,  nullable: true, description: "osm | official" }
+  search_key:          { type: string,  nullable: true, description: "Normalised OSM + official names, for search" }
   ref:                 { type: string,  nullable: true, description: "OSM ref, e.g. NH48" }
   road_class:          { type: string,  description: "OSM highway class (motorway ... living_street)" }
   length_m:            { type: double,  description: "Length in metres, computed in UTM 44N (EPSG:32644)" }

@@ -4,8 +4,12 @@ An operating system for city planning in Indian cities (Chennai first). It grows
 **Phase 1 is the Roads module:** pick a road on the map and get 2–3 standards-based cross-section
 designs, each with a drawing, a plain-language explanation and a citation for every element.
 
-Status: **M1 (city map)**: every Chennai road on the map, clickable, with length and an *estimated* width. See `docs/DECISIONS.md` for what was decided and why,
-and `docs/PARKED.md` for known gaps we are deliberately not doing yet.
+Status: **M1b (data inbox)**: every Chennai road is on the map, clickable, with an *estimated* width
+and its OpenStreetMap + official (Greater Chennai Corporation) name side by side. A data inbox turns
+partner files (CSV, Excel, KML, GeoJSON, shapefile, GeoPackage, AutoCAD .dxf) into map layers linked
+to the right road, and a road width survey upgrades the roads it covers to *verified*.
+See `docs/DECISIONS.md` for what was decided and why, and `docs/PARKED.md` for known gaps we are
+deliberately not doing yet.
 
 ## Principles (short version)
 - The LLM never does geometry or arithmetic; a deterministic engine does.
@@ -38,6 +42,17 @@ cd frontend; npm run dev       # UI on http://localhost:5173
 Writes `DATA_DIR\cities\chennai\roads\` (GeoParquet, PMTiles, `roads_build_report.json`) and registers
 the raw OSM files in the catalog. Re-running replaces the output cleanly.
 
+## Bring in partner data
+Open the **Data inbox** tab in the app. Upload a file (or drop one into `DATA_DIR\raw\<topic>\` and
+click Register), pick what it contains (traffic counts, a width survey, bus stops, ...), check the
+column mapping, and import. Rows are linked to the right road automatically, by location or by name;
+rows that can't be matched are listed so you can link them by hand. Importing a road width survey
+upgrades the roads it covers to **verified**.
+
+Try it with the made-up test files in [samples/](samples/) — see `samples/README.md`. Everything
+imported from a file named `SAMPLE_...` is labelled "SAMPLE: made-up test data" everywhere it appears
+(map, layer list, panels), so it can never be mistaken for real data.
+
 ## Back up the data
 ```powershell
 .\.venv\Scripts\python.exe scripts\backup.py      # -> D:\citydata_backups\citydata_<time>.zip
@@ -46,20 +61,25 @@ Skips regenerable files (tiles, embeddings). Restore = unzip to a folder and poi
 
 ## Test
 ```powershell
-.\.venv\Scripts\python.exe -m pytest
+.\.venv\Scripts\python.exe -m pytest    # backend: 155 tests
+cd frontend; npm test                    # frontend: 45 tests
 ```
-Tests use a throwaway temporary data folder, never your real `DATA_DIR`.
+Backend tests use a throwaway temporary data folder, never your real `DATA_DIR`. Most build a small
+made-up road network (`backend\tests\conftest.py`) through the real pipeline code, so they exercise
+the same logic the app uses without downloading anything.
 
 ## Layout
 ```
 backend\app\          FastAPI entry point (finds modules automatically)
-backend\core\         shared: config, store\ (the only code that touches DuckDB), layer registry
+backend\core\         shared: config, store\ (the only code that touches DuckDB), layer registry,
+                       inbox\ (file readers, mapping, validation, import), llm\, text.py, geo.py
 backend\modules\      one folder per module (roads\ now)
-layers\<topic>\       topic + layer definitions (roads, people, surroundings)
+layers\<topic>\       topic + layer definitions (roads, people, surroundings) and import targets
 config\cities\        one YAML per city
-frontend\src\core\    map, API client
+frontend\src\core\    map, API client, data inbox UI (core\inbox\)
 frontend\src\modules\ module UIs
 scripts\              setup, run, pipelines, backup
+samples\              made-up test files for trying the data inbox
 docs\                 DECISIONS.md, PARKED.md
 ```
 

@@ -6,8 +6,10 @@ from fastapi.responses import FileResponse
 
 from core import modules
 from core.config import APP_VERSION, settings
+from core.inbox import api as inbox_api
 from core.layers import registry
-from core.store import catalog, paths
+from core.llm import client as llm
+from core.store import catalog, layers, paths
 
 MODULES = modules.discover()
 
@@ -23,6 +25,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="City Planning OS", version=APP_VERSION, lifespan=lifespan)
 
+app.include_router(inbox_api.router)
 for m in MODULES:
     app.include_router(m.router)
 
@@ -37,10 +40,12 @@ def health():
 @app.get("/api/system")
 def system():
     """What the UI needs to show about the environment (e.g. whether prompts leave the machine)."""
+    i = llm.info()
     return {
         "version": APP_VERSION,
-        "llm_provider": settings.llm_provider,
-        "llm_is_external": settings.llm_is_external,
+        "llm_provider": i.provider,
+        "llm_model": i.model,
+        "llm_is_external": i.external,
     }
 
 
@@ -79,8 +84,28 @@ def city_layers(city_id: str):
             "tiles_url": (f"/api/tiles/{city_id}/{layer['topic']}/{layer['layer_id']}.pmtiles"
                           if tiles_file.exists() else None),
             "tiles": d.get("tiles"),
+            "kind": d.get("kind", "built"),
+            "color": d.get("color"),
+            "summary_fields": d.get("summary_fields", []),
+            "has_sample_data": any(i["stats"].get("is_sample") for i in catalog.list_imports(city_id, layer["layer_id"])),
         })
     return out
+
+
+@app.get("/api/cities/{city_id}/layers/{layer_id}/features")
+def layer_features(city_id: str, layer_id: str, bbox: str | None = None, limit: int = 5000):
+    """GeoJSON for small layers (imported data), cut to the map view. Big layers use tiles."""
+    box = None
+    if bbox:
+        try:
+            box = tuple(float(v) for v in bbox.split(","))
+            assert len(box) == 4
+        except (ValueError, AssertionError):
+            raise HTTPException(422, "bbox must be minLon,minLat,maxLon,maxLat")
+    try:
+        return layers.features_geojson(city_id, layer_id, box, min(limit, 20000))
+    except LookupError as e:
+        raise HTTPException(404, str(e)) from e
 
 
 @app.get("/api/tiles/{city_id}/{topic}/{layer_id}.pmtiles")

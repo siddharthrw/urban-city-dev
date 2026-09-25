@@ -66,3 +66,76 @@ Short log: what we decided, and why. Newest at the bottom.
 - **Backups:** `scripts\backup.py` zips DATA_DIR minus tiles/embeddings into `<DATA_DIR>_backups\`.
 - **Frontend module wiring is explicit for now:** `App.tsx` imports the roads UI directly. A frontend
   module registry can wait until there is a second module.
+
+## 2026-09-25: M1b data inbox
+
+- **Official road names, decided (was parked in M1).** Sample-and-vote matching (`core\geo.py`:
+  sample points along each OSM segment, each votes for the nearest official line within 8 m; a
+  segment needs ≥60% agreement) instead of nearest-line, so a segment near a junction is not named
+  by the crossing street. `core\text.py` normalises names (expands abbreviations, unifies ordinals
+  "VIIth"/"7"/"7th", joins initials "N.S.K." → "nsk") before comparing, and only calls two names
+  "similar" when the shorter one has a distinctive word — "1st Street" never auto-matches "1st Link
+  Street" this way, but "Anna Street" matches "Anna Street Padi". Result: named (OSM or official)
+  rose from 39% to 87%; where both name a segment, 51% agree (same/similar) after normalising —
+  most of the remaining "different" pairs are real differences (a crossing street's name bleeding
+  onto a short link, or genuinely different local names), not matching failures.
+  `name`, `name_official`, `name_match`, `display_name` (OSM first, else official) are all stored,
+  so nothing is silently overwritten. City config gets `official_road_names` (source prefix, field
+  names) so a future city can plug in its own official source or have none.
+- **Topics organise imports too.** A new import target is one YAML file under `layers\<topic>\`
+  (`kind: imported`, `link_to: roads`, its fields with types/aliases). The inbox, mapping, and API
+  read every one automatically — adding "cycle counts" later needs no code change.
+- **Column mapping: auto-detect first, LLM only fills gaps.** `core\inbox\mapping.py` scores column
+  headers against each field's name/label/aliases (fuzzy match); only when asked does it call the
+  LLM, and only with column *names and inferred types* — never cell values — so a local Ollama model
+  is enough and an external provider never sees partner data. The LLM's answers are validated
+  (unknown headers/fields and duplicate columns dropped) before they reach the mapping. A person
+  always confirms before import.
+- **Linking a row to a road, by kind of geometry:**
+  point → nearest segment within 30 m; line → every segment it runs along (same sample-and-vote as
+  names, but against many target segments, collecting all of them, not just the best); polygon →
+  every segment inside/crossing it; no geometry → road name, normalised then fuzzy-matched. A name
+  used by several separate streets (`core\modules\roads\linking.py`: segments >150 m apart cluster
+  as different streets) is never guessed — the row is listed "ambiguous" with each candidate street,
+  for a person to pick — *unless* one street is ≥5× longer than any namesake, in which case it's
+  picked automatically with a note (handles the very common "1st Street" pattern without silently
+  guessing on a genuinely ambiguous case).
+- **Unmatched rows are fixed in the UI, not the file.** A person types a road name or picks from
+  the ambiguous candidates; the choice is stored in `import_links` (keyed by the file's own row
+  number) and re-applied on every re-import, so re-uploading a corrected file, or just re-running
+  the same import, never loses a hand-fix.
+- **Layers from imports are partitioned: one GeoParquet file per import** (`layers\<layer>\<import_id>.parquet`),
+  read with a DuckDB glob. Deleting an import deletes its file and re-records the layer from what's
+  left (or removes the layer entirely if that was the only import) — no need to touch other imports'
+  data.
+- **A layer can react to being imported.** `IMPORT_HOOKS` in a module (`modules\roads\hooks.py`) — importing
+  `width_surveys` takes the median width per linked segment, writes it to `feature_overrides` (already
+  built in M1) keyed by that import's id, and refreshes the roads layer + tiles (~4 s, no download).
+  Deleting the import removes exactly those overrides and refreshes again. `IMPORT_LINKERS` similarly
+  lets a module supply the "link to my rows" logic for topics that need it (only `roads` for now).
+- **PMTiles bake in width, so the frontend reloads the roads vector source (new URL, cache-busted)
+  after any import that can change widths**, rather than trying to patch tiles in place.
+- **Small imported layers are served as plain GeoJSON, filtered to the map's current view**
+  (`/api/cities/{city}/layers/{layer}/features?bbox=...`), not tiled — they're at most a few thousand
+  rows, and this keeps them simple and always fresh. Only the big roads layer needs tiles.
+- **Every readable format returns the same shape** (`core\inbox\readers.py`): a DataFrame or
+  GeoDataFrame with a `_row_no` column matching what a person would see opening the file (spreadsheet
+  row number, or feature number), so problems can always be reported in the file's own terms.
+  CSV/Excel: the header row is auto-found (government sheets often have title/blank rows above it) by
+  looking for the first mostly-text, mostly-full row. KML: GDAL's noise columns
+  (`timestamp`,`tessellate`,...) are dropped, and ArcGIS-style KML that puts attributes in an HTML
+  table inside `<description>` is parsed out. Formats needing GDAL drivers we don't have installed
+  (old `.xls`, AutoCAD `.dwg`) get a specific message telling the person how to convert them, rather
+  than a generic error.
+- **Sample/test files are opt-in and unmissable.** Any file named `SAMPLE_...` is registered with
+  "(SAMPLE: made-up test data)" in its name and licence; every row imported from it carries
+  `is_sample: true`, shown as an orange "SAMPLE" badge everywhere (map panel, layer list, import
+  result) and drawn dashed/orange-outlined on the map, so it can never be mistaken for real data.
+  `samples/` in the repo holds three: a messy traffic-count CSV (title rows, abbreviations, a typo,
+  an ambiguous name, a bad number, one row placed by lat/lon), a bus-stop KML (one point that must
+  not link to a road), and a width survey (to demo the verified-width upgrade).
+- **Tests build a small made-up road network through the real pipeline** (`backend\tests\conftest.py`:
+  a `world` fixture — a named street, a crossing street, two separate streets sharing a name, an
+  OSM-unnamed street with only an official name, a one-way street with merged OSM classes and a
+  width tag), instead of mocking the pipeline's internals. All inbox/roads/pipeline tests run against
+  it, so they exercise the same code path the app does, without any network access.

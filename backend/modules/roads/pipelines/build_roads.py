@@ -24,7 +24,7 @@ from pyproj import Geod
 
 from core.layers import registry
 from core.store import catalog, layers, paths, tiles
-from modules.roads import widths
+from modules.roads import names, widths
 
 ROAD_CLASSES = ["motorway", "trunk", "primary", "secondary", "tertiary",
                 "unclassified", "residential", "living_street"]
@@ -199,19 +199,24 @@ def report(seg: gpd.GeoDataFrame) -> dict:
 
 # ---------- main ----------
 
-def build(city_id: str, day: date) -> dict:
-    city = registry.city_config(city_id)
+def official_names(seg: gpd.GeoDataFrame, city: dict) -> tuple[gpd.GeoDataFrame, list[str], dict]:
+    """Add official road names if the city has a registered official centerline source."""
+    cfg = city.get("official_road_names")
+    src = catalog.latest_source(cfg["source_prefix"]) if cfg else None
+    if src is None:
+        log("No official road-name source registered; OSM names only.")
+        seg, stats = names.add_official_names(seg, None, city["utm_epsg"])
+        return seg, [], stats
+    log(f"Matching official names from {src['name']} ...")
+    official = names.read_official_lines(src["path"], cfg["name_field"], cfg["id_field"])
+    seg, stats = names.add_official_names(seg, official, city["utm_epsg"])
+    stats["official_source"] = src["source_id"]
+    return seg, [src["source_id"]], stats
+
+
+def publish(city_id: str, seg: gpd.GeoDataFrame, source_ids: list[str]) -> dict:
+    """Write the layer file, record it in the catalog, rebuild its tiles."""
     ldef = registry.layer_def(LAYER_ID)
-    raw = paths.raw_dir(TOPIC, "osm", day.isoformat())
-
-    G, _ = download(city, raw)
-    source_ids = register_raw(city_id, raw, day)
-    log(f"Graph: {G.number_of_nodes():,} nodes, {G.number_of_edges():,} directed edges")
-
-    seg = apply_widths(to_segments(G, city), city_id)
-    rep = report(seg)
-    log(f"Segments: {rep['segments']:,} from {rep['osm_ways']:,} OSM ways, {rep['total_km']:,} km")
-
     out = paths.layer_path(city_id, TOPIC, LAYER_ID)
     layers.write_geoparquet(seg, out)
     catalog.record_layer(
@@ -219,20 +224,49 @@ def build(city_id: str, day: date) -> dict:
         geometry_type=ldef["geometry_type"], feature_count=len(seg),
         build_script=ldef["build_script"], source_ids=source_ids,
     )
-
-    log("Building vector tiles...")
     t = ldef["tiles"]
-    tinfo = tiles.build_pmtiles(
+    return tiles.build_pmtiles(
         parquet=out, out=paths.tiles_path(city_id, TOPIC, LAYER_ID), layer_name=LAYER_ID,
         properties=t["properties"], minzoom=t["minzoom"], maxzoom=t["maxzoom"],
         zoom_filter={int(k): v for k, v in t["zoom_filter"].items()},
     )
-    rep["tiles"] = tinfo
+
+
+def build(city_id: str, day: date) -> dict:
+    city = registry.city_config(city_id)
+    raw = paths.raw_dir(TOPIC, "osm", day.isoformat())
+
+    G, _ = download(city, raw)
+    source_ids = register_raw(city_id, raw, day)
+    log(f"Graph: {G.number_of_nodes():,} nodes, {G.number_of_edges():,} directed edges")
+
+    seg = to_segments(G, city)
+    seg, official_ids, name_stats = official_names(seg, city)
+    seg = apply_widths(seg, city_id)
+    rep = report(seg)
+    rep["names"] = name_stats
+    log(f"Segments: {rep['segments']:,} from {rep['osm_ways']:,} OSM ways, {rep['total_km']:,} km; "
+        f"named: OSM {name_stats['named_osm_share']:.0%}, OSM+official {name_stats['named_any_share']:.0%}")
+
+    log("Writing layer and vector tiles...")
+    rep["tiles"] = publish(city_id, seg, source_ids + official_ids)
     rep["raw_date"] = day.isoformat()
     (paths.city_topic_dir(city_id, TOPIC) / "roads_build_report.json").write_text(
         json.dumps(rep, indent=2, default=str), encoding="utf-8")
-    log(f"Tiles: {tinfo['tiles']:,} tiles, {tinfo['bytes'] / 1e6:.1f} MB")
+    log(f"Tiles: {rep['tiles']['tiles']:,} tiles, {rep['tiles']['bytes'] / 1e6:.1f} MB")
     return rep
+
+
+def refresh_widths(city_id: str) -> dict:
+    """Fast path (seconds, no network): re-apply widths (e.g. after new verified surveys) to the
+    existing roads layer and rebuild its tiles."""
+    layer = catalog.get_layer(city_id, LAYER_ID)
+    if layer is None:
+        raise LookupError(f"Roads have not been built for '{city_id}'.")
+    seg = gpd.read_parquet(layer["path"])
+    seg = apply_widths(seg, city_id)
+    info = publish(city_id, seg, [s["source_id"] for s in layer["sources"]])
+    return {"width_source_counts": seg["width_source"].value_counts().to_dict(), "tiles": info}
 
 
 def main(argv=None) -> None:

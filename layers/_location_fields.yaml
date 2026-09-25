@@ -1,0 +1,24 @@
+# Location fields every imported layer understands, in addition to its own fields.
+# A row is placed on the map by (in order): the file's own geometry (KML, shapefile, ...),
+# latitude + longitude columns, or a road name matched against the roads layer.
+latitude:
+  type: float
+  label: Latitude
+  min: -90
+  max: 90
+  aliases: [lat, latitude, y, lat dd, gps lat, latitude n]
+longitude:
+  type: float
+  label: Longitude
+  min: -180
+  max: 180
+  aliases: [lon, lng, long, longitude, x, lon dd, gps long, longitude e]
+road_name:
+  type: string
+  label: Road name
+  aliases: [road, road name, street, street name, name of road, name of the road, road street name, location, stretch]
+area:
+  type: string
+  label: Area / locality
+  description: Not used for matching yet; kept so rows can be told apart.
+  aliases: [area, locality, ward, zone, neighbourhood, neighborhood, place]

@@ -1,0 +1,15 @@
+SAMPLE - MADE-UP TEST DATA - NOT REAL TRAFFIC COUNTS,,,,,,,,,,
+,,,,,,,,,,
+Sl No,Road Name,Date,Peak Hour,Cars,Two Wheelers,Autos,Buses,Total Vehicles,Latitude,Longitude
+1,North Usman Road,12/08/2026,8-9 AM,1250,3400,420,85,5155,,
+2,South Usman Rd,12/08/2026,8-9 AM,980,2900,380,60,4320,,
+3,Sir Thyagaraya Road,13/08/2026,6-7 PM,1100,3900,510,40,5550,,
+4,Cathedral Road,13/08/2026,6-7 PM,2100,4200,300,110,6710,,
+5,Sardar Patel Rd.,14/08/2026,9-10 AM,2600,5100,450,150,8300,,
+6,Dr. Radhakrishnan Salai,14/08/2026,9-10 AM,1900,3800,350,90,6140,,
+7,Nrth Usman Road,15/08/2026,8-9 AM,1180,3350,400,80,5010,,
+8,1st Street,15/08/2026,8-9 AM,120,640,90,0,850,,
+9,Imaginary Test Road,15/08/2026,8-9 AM,300,900,100,5,1305,,
+10,Cathedral Road,16/08/2026,8-9 AM,abc,4000,280,105,,,
+11,,16/08/2026,6-7 PM,1300,3500,430,88,5318,13.046304,80.232781
+12,Anna Salai,16/08/2026,6-7 PM,3100,6200,700,210,10210,,

@@ -46,7 +46,7 @@ export function addRoadsLayer(map: maplibregl.Map, layer: LayerInfo) {
   // All segments of the selected road name.
   map.addLayer({
     id: ROAD_HL, type: "line", ...common,
-    filter: ["==", ["get", "name"], ""],
+    filter: ["==", ["get", "display_name"], ""],
     layout: { "line-cap": "round", "line-join": "round" },
     paint: { "line-color": "#60a5fa", "line-width": lineWidth(1.6), "line-opacity": 0.8 },
   });
@@ -68,36 +68,22 @@ export function setRoadsVisible(map: maplibregl.Map, visible: boolean) {
 export function highlight(map: maplibregl.Map, segId: string | null, roadName: string | null) {
   if (!map.getLayer(SEG_HL)) return;
   map.setFilter(SEG_HL, ["==", ["get", "seg_id"], segId ?? ""]);
-  map.setFilter(ROAD_HL, ["==", ["get", "name"], roadName ?? ""]);
+  map.setFilter(ROAD_HL, ["==", ["get", "display_name"], roadName ?? ""]);
 }
 
-/** Click handling with a few pixels of tolerance, since residential streets are thin lines. */
-export function onRoadClick(map: maplibregl.Map, handler: (segId: string | null) => void) {
-  const click = (e: maplibregl.MapMouseEvent) => {
-    const t = CLICK_TOLERANCE_PX;
-    const feats = map.queryRenderedFeatures(
-      [[e.point.x - t, e.point.y - t], [e.point.x + t, e.point.y + t]],
-      { layers: [LINE] },
-    );
-    handler(feats.length ? String(feats[0].properties.seg_id) : null);
-    // The details panel sits top-right; if the clicked street is underneath it, slide the map left.
-    const w = map.getCanvas().clientWidth;
-    if (feats.length && e.point.x > w - PANEL_W && e.point.y < PANEL_H) {
-      map.panBy([e.point.x - (w - PANEL_W) / 2, 0], { duration: 400 });
-    }
-  };
-  const move = (e: maplibregl.MapMouseEvent) => {
-    const t = CLICK_TOLERANCE_PX;
-    const hit = map.queryRenderedFeatures(
-      [[e.point.x - t, e.point.y - t], [e.point.x + t, e.point.y + t]],
-      { layers: [LINE] },
-    ).length;
-    map.getCanvas().style.cursor = hit ? "pointer" : "";
-  };
-  map.on("click", click);
-  map.on("mousemove", move);
-  return () => {
-    map.off("click", click);
-    map.off("mousemove", move);
-  };
+/** The road segment under a screen point, with a few pixels of tolerance (residential streets are thin). */
+export function roadAt(map: maplibregl.Map, p: { x: number; y: number }): string | null {
+  if (!map.getLayer(LINE)) return null;
+  const t = CLICK_TOLERANCE_PX;
+  const feats = map.queryRenderedFeatures([[p.x - t, p.y - t], [p.x + t, p.y + t]], { layers: [LINE] });
+  return feats.length ? String(feats[0].properties.seg_id) : null;
 }
+
+/** The details panel sits top-right; if the clicked spot is underneath it, slide the map left. */
+export function keepClearOfPanel(map: maplibregl.Map, p: { x: number; y: number }) {
+  const w = map.getCanvas().clientWidth;
+  if (p.x > w - PANEL_W && p.y < PANEL_H) {
+    map.panBy([p.x - (w - PANEL_W) / 2, 0], { duration: 400 });
+  }
+}
+

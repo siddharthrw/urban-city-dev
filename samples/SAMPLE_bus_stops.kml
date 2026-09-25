@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+<Document>
+  <name>SAMPLE - MADE-UP TEST DATA - NOT REAL BUS STOPS</name>
+  <Schema name="bus_stops" id="bus_stops">
+    <SimpleField name="stop_name" type="string"/>
+    <SimpleField name="routes" type="string"/>
+    <SimpleField name="daily_boardings" type="int"/>
+  </Schema>
+  <Folder><name>bus_stops</name>
+    <Placemark>
+      <ExtendedData><SchemaData schemaUrl="#bus_stops">
+        <SimpleData name="stop_name">Test stop A (North Usman Road)</SimpleData>
+        <SimpleData name="routes">SAMPLE-1, SAMPLE-2</SimpleData>
+        <SimpleData name="daily_boardings">1200</SimpleData>
+      </SchemaData></ExtendedData>
+      <Point><coordinates>80.232810,13.046320</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <ExtendedData><SchemaData schemaUrl="#bus_stops">
+        <SimpleData name="stop_name">Test stop B (Cathedral Road)</SimpleData>
+        <SimpleData name="routes">SAMPLE-3</SimpleData>
+        <SimpleData name="daily_boardings">800</SimpleData>
+      </SchemaData></ExtendedData>
+      <Point><coordinates>80.252790,13.050270</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <ExtendedData><SchemaData schemaUrl="#bus_stops">
+        <SimpleData name="stop_name">Test stop C (Sardar Patel Road)</SimpleData>
+        <SimpleData name="routes">SAMPLE-4</SimpleData>
+        <SimpleData name="daily_boardings">2100</SimpleData>
+      </SchemaData></ExtendedData>
+      <Point><coordinates>80.242140,13.006610</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <ExtendedData><SchemaData schemaUrl="#bus_stops">
+        <SimpleData name="stop_name">Test stop D (Dr Radhakrishnan Salai)</SimpleData>
+        <SimpleData name="routes">SAMPLE-5</SimpleData>
+        <SimpleData name="daily_boardings">950</SimpleData>
+      </SchemaData></ExtendedData>
+      <Point><coordinates>80.262990,13.044720</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <ExtendedData><SchemaData schemaUrl="#bus_stops">
+        <SimpleData name="stop_name">Test stop E (in the sea: should not link)</SimpleData>
+        <SimpleData name="routes">SAMPLE-6</SimpleData>
+        <SimpleData name="daily_boardings">0</SimpleData>
+      </SchemaData></ExtendedData>
+      <Point><coordinates>80.300000,13.050000</coordinates></Point>
+    </Placemark>
+  </Folder>
+</Document>
+</kml>

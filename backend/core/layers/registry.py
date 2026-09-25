@@ -43,6 +43,23 @@ def layer_def(layer_id: str) -> dict:
     raise LookupError(f"No layer definition for '{layer_id}' under {LAYERS_ROOT}")
 
 
+def location_fields() -> dict:
+    return _load(LAYERS_ROOT / "_location_fields.yaml")
+
+
+def import_layer_defs() -> list[dict]:
+    """Layers the data inbox can import into (kind: imported)."""
+    return [d for d in layer_defs() if d.get("kind") == "imported"]
+
+
+def import_fields(layer_id: str) -> dict:
+    """All fields an import into this layer can map: its own fields, then the location fields."""
+    d = layer_def(layer_id)
+    if d.get("kind") != "imported":
+        raise LookupError(f"Layer '{layer_id}' is not an import target")
+    return {**d.get("fields", {}), **location_fields()}
+
+
 def city_config(city_id: str) -> dict:
     for c in city_configs():
         if c["city_id"] == city_id:

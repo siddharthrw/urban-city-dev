@@ -8,6 +8,7 @@ Tables
   feature_overrides  human/survey values (e.g. verified widths) that survive rebuilds
 """
 import hashlib
+import json
 import shutil
 from datetime import date, datetime, timezone
 from pathlib import Path
@@ -87,6 +88,32 @@ CREATE TABLE IF NOT EXISTS feature_overrides (
     entered_at  TIMESTAMP,
     PRIMARY KEY (city_id, layer_id, feature_id, attribute)
 );
+
+-- Data inbox: one row per (source file, target layer, sheet). Re-importing replaces it.
+CREATE TABLE IF NOT EXISTS imports (
+    import_id   VARCHAR PRIMARY KEY,
+    city_id     VARCHAR NOT NULL,
+    source_id   VARCHAR NOT NULL,
+    layer_id    VARCHAR NOT NULL,
+    sheet       VARCHAR,
+    mapping     VARCHAR,      -- JSON {field: column}
+    options     VARCHAR,      -- JSON (e.g. {"crs": "EPSG:32644"})
+    status      VARCHAR,      -- imported | failed
+    stats       VARCHAR,      -- JSON counts
+    problems    VARCHAR,      -- JSON {invalid: [...], unmatched: [...]}
+    created_at  TIMESTAMP,
+    updated_at  TIMESTAMP
+);
+
+-- A person's fix for a row the inbox could not link to a road. Survives re-imports.
+CREATE TABLE IF NOT EXISTS import_links (
+    import_id   VARCHAR NOT NULL,
+    row_no      INTEGER NOT NULL,
+    seg_ids     VARCHAR[],
+    road_name   VARCHAR,
+    created_at  TIMESTAMP,
+    PRIMARY KEY (import_id, row_no)
+);
 """
 
 
@@ -146,6 +173,20 @@ def register_source(
             [source_id, city_id, topic, name, origin, received_at, licence,
              paths.relative(file), sha256_file(file), file.stat().st_size, notes, _now()],
         )
+
+
+def latest_source(prefix: str) -> dict | None:
+    """Newest registered source whose id starts with prefix (e.g. the latest GCC centerline)."""
+    with db.connect(read_only=True) as con:
+        row = con.execute(
+            "SELECT source_id, name, path, received_at, licence FROM sources "
+            "WHERE starts_with(source_id, ?) ORDER BY received_at DESC, registered_at DESC LIMIT 1",
+            [prefix],
+        ).fetchone()
+    if not row:
+        return None
+    return {"source_id": row[0], "name": row[1], "path": settings.data_dir / row[2],
+            "received_at": row[3], "licence": row[4]}
 
 
 def record_layer(
@@ -210,6 +251,116 @@ def get_overrides(city_id: str, layer_id: str, attribute: str) -> dict[str, dict
             [city_id, layer_id, attribute],
         ).fetchall()
     return {r[0]: {"value": r[1], "detail": r[2]} for r in rows}
+
+
+def get_source(source_id: str) -> dict | None:
+    with db.connect(read_only=True) as con:
+        cur = con.execute("SELECT * FROM sources WHERE source_id = ?", [source_id])
+        row = cur.fetchone()
+        cols = [d[0] for d in cur.description]
+    if not row:
+        return None
+    out = dict(zip(cols, row))
+    out["abs_path"] = settings.data_dir / out["path"]
+    return out
+
+
+def list_sources(city_id: str | None = None) -> list[dict]:
+    with db.connect(read_only=True) as con:
+        cur = con.execute(
+            "SELECT * FROM sources WHERE ? IS NULL OR city_id = ? OR city_id IS NULL "
+            "ORDER BY registered_at DESC", [city_id, city_id])
+        cols = [d[0] for d in cur.description]
+        return [dict(zip(cols, r)) for r in cur.fetchall()]
+
+
+def registered_paths() -> set[str]:
+    with db.connect(read_only=True) as con:
+        return {r[0] for r in con.execute("SELECT path FROM sources").fetchall()}
+
+
+def delete_layer_record(city_id: str, layer_id: str) -> None:
+    with db.connect() as con:
+        con.execute("DELETE FROM layers WHERE city_id = ? AND layer_id = ?", [city_id, layer_id])
+        con.execute("DELETE FROM layer_sources WHERE city_id = ? AND layer_id = ?", [city_id, layer_id])
+
+
+# ---------- overrides ----------
+
+def replace_overrides(city_id: str, layer_id: str, attribute: str, source_id: str,
+                      values: dict[str, tuple[float, str]]) -> None:
+    """Replace every override that came from source_id with {feature_id: (value, detail)}."""
+    now = _now()
+    with db.connect() as con:
+        con.execute(
+            "DELETE FROM feature_overrides WHERE city_id = ? AND layer_id = ? AND attribute = ? AND source_id = ?",
+            [city_id, layer_id, attribute, source_id])
+        for fid, (value, detail) in values.items():
+            con.execute(
+                "INSERT OR REPLACE INTO feature_overrides VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                [city_id, layer_id, fid, attribute, value, detail, source_id, now])
+
+
+# ---------- imports ----------
+
+def save_import(rec: dict) -> None:
+    now = _now()
+    with db.connect() as con:
+        existing = con.execute("SELECT created_at FROM imports WHERE import_id = ?", [rec["import_id"]]).fetchone()
+        con.execute(
+            "INSERT OR REPLACE INTO imports VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            [rec["import_id"], rec["city_id"], rec["source_id"], rec["layer_id"], rec.get("sheet"),
+             json.dumps(rec.get("mapping", {})), json.dumps(rec.get("options", {})), rec["status"],
+             json.dumps(rec.get("stats", {}), default=str), json.dumps(rec.get("problems", {}), default=str),
+             existing[0] if existing else now, now])
+
+
+def _import_row(cols, row) -> dict:
+    d = dict(zip(cols, row))
+    for k in ("mapping", "options", "stats", "problems"):
+        d[k] = json.loads(d[k]) if d[k] else {}
+    return d
+
+
+def get_import(import_id: str) -> dict | None:
+    with db.connect(read_only=True) as con:
+        cur = con.execute("SELECT * FROM imports WHERE import_id = ?", [import_id])
+        row = cur.fetchone()
+        cols = [d[0] for d in cur.description]
+    return _import_row(cols, row) if row else None
+
+
+def list_imports(city_id: str, layer_id: str | None = None) -> list[dict]:
+    with db.connect(read_only=True) as con:
+        cur = con.execute(
+            "SELECT * FROM imports WHERE city_id = ? AND (? IS NULL OR layer_id = ?) ORDER BY updated_at DESC",
+            [city_id, layer_id, layer_id])
+        cols = [d[0] for d in cur.description]
+        return [_import_row(cols, r) for r in cur.fetchall()]
+
+
+def delete_import(import_id: str) -> None:
+    with db.connect() as con:
+        con.execute("DELETE FROM imports WHERE import_id = ?", [import_id])
+        con.execute("DELETE FROM import_links WHERE import_id = ?", [import_id])
+
+
+def set_import_link(import_id: str, row_no: int, seg_ids: list[str], road_name: str | None) -> None:
+    with db.connect() as con:
+        con.execute("INSERT OR REPLACE INTO import_links VALUES (?, ?, ?, ?, ?)",
+                    [import_id, row_no, seg_ids, road_name, _now()])
+
+
+def clear_import_link(import_id: str, row_no: int) -> None:
+    with db.connect() as con:
+        con.execute("DELETE FROM import_links WHERE import_id = ? AND row_no = ?", [import_id, row_no])
+
+
+def get_import_links(import_id: str) -> dict[int, dict]:
+    with db.connect(read_only=True) as con:
+        rows = con.execute("SELECT row_no, seg_ids, road_name FROM import_links WHERE import_id = ?",
+                           [import_id]).fetchall()
+    return {r[0]: {"seg_ids": list(r[1] or []), "road_name": r[2]} for r in rows}
 
 
 def health() -> dict:

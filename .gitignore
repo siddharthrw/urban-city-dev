@@ -22,6 +22,7 @@ frontend/dist/
 *.gpkg
 *.shp
 *.kml
+!samples/*.kml
 *.kmz
 *.npy
 data/

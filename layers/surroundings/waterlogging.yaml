@@ -1,0 +1,28 @@
+layer_id: waterlogging
+topic: surroundings
+label: Waterlogging spots
+kind: imported
+link_to: roads
+color: "#2563eb"
+description: Known waterlogging / flooding spots or zones.
+summary_fields: [event_date, depth_cm, duration_hours]
+fields:
+  event_date:
+    type: date
+    label: Date
+    aliases: [date, event date, flood date, reported on]
+  depth_cm:
+    type: float
+    label: Depth (cm)
+    min: 0
+    max: 500
+    aliases: [depth, depth cm, water depth, water level]
+  duration_hours:
+    type: float
+    label: Duration (hours)
+    min: 0
+    aliases: [duration, hours, duration hours, stagnation hours]
+  notes:
+    type: string
+    label: Notes
+    aliases: [notes, remarks, description, cause]

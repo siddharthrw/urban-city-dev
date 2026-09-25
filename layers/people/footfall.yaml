@@ -1,0 +1,27 @@
+layer_id: footfall
+topic: people
+label: Pedestrian counts / footfall
+kind: imported
+link_to: roads
+color: "#db2777"
+description: People walking along or crossing a road, counted over a period.
+summary_fields: [count_date, time_period, pedestrians]
+fields:
+  count_date:
+    type: date
+    label: Count date
+    aliases: [date, count date, survey date]
+  time_period:
+    type: string
+    label: Time / period
+    aliases: [time, period, peak, hour, time period, slot]
+  pedestrians:
+    type: int
+    label: Pedestrians
+    required: true
+    min: 0
+    aliases: [pedestrians, pedestrian count, footfall, people, persons, walkers, count]
+  notes:
+    type: string
+    label: Notes
+    aliases: [notes, remarks, comment]
