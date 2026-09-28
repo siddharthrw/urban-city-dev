@@ -107,32 +107,33 @@ export default function MapillaryViewer({ lngLat }: Props) {
     );
   }
 
-  return (
-    <div className="relative h-56 overflow-hidden rounded-md">
-      {/* Container is always visible so the WebGL context gets a real size on init. */}
-      <div ref={containerRef} className="h-full w-full" />
+  const gmapsUrl = `https://www.google.com/maps?cbll=${lngLat.lat},${lngLat.lng}&layer=c`;
 
-      {/* Overlay — covers the viewer while it is loading, fades away on success. */}
-      {status !== "ok" && (
-        <div className={`absolute inset-0 flex flex-col items-center justify-center gap-2 text-xs
-          ${status === "error" ? "bg-red-50 px-3 text-red-700" : "bg-slate-100 text-slate-400"}`}>
-          {status === "loading" && "Finding street view…"}
-          {status === "error" && errorMsg}
-          {status === "no-coverage" && (
-            <>
-              <span>No Mapillary imagery near this road</span>
-              <a
-                href={`https://www.google.com/maps?cbll=${lngLat.lat},${lngLat.lng}&layer=c`}
-                target="_blank"
-                rel="noreferrer"
-                className="rounded-md bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm ring-1 ring-slate-200 hover:bg-slate-50"
-              >
-                Open Google Street View ↗
-              </a>
-            </>
-          )}
-        </div>
-      )}
+  return (
+    <div className="space-y-1">
+      <div className="relative h-56 overflow-hidden rounded-md">
+        {/* Container is always visible so the WebGL context gets a real size on init. */}
+        <div ref={containerRef} className="h-full w-full" />
+
+        {/* Overlay — covers the viewer while loading or when there's no coverage. */}
+        {status !== "ok" && (
+          <div className={`absolute inset-0 flex flex-col items-center justify-center gap-2 text-xs
+            ${status === "error" ? "bg-red-50 px-3 text-red-700" : "bg-slate-100 text-slate-400"}`}>
+            {status === "loading" && "Finding street view…"}
+            {status === "error" && errorMsg}
+            {status === "no-coverage" && <span>No Mapillary imagery near this road</span>}
+          </div>
+        )}
+      </div>
+
+      <a
+        href={gmapsUrl}
+        target="_blank"
+        rel="noreferrer"
+        className="flex items-center justify-center gap-1 rounded-md border border-slate-200 py-1 text-xs text-slate-500 hover:bg-slate-50 hover:text-slate-700"
+      >
+        Open in Google Street View ↗
+      </a>
     </div>
   );
 }
