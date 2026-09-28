@@ -65,6 +65,11 @@ export type ExplainResult = DesignResult & {
   explanation_warnings: string[];
 };
 
+export type ExplainOneResult = {
+  explanation: string;
+  warnings: string[];
+};
+
 export type VerifyWidthResult = {
   seg_id: string;
   width_m: number;
@@ -86,6 +91,13 @@ export const designApi = {
   explain: (cityId: string, segId: string, body: { context: string[]; row_m?: number }) =>
     sendJson<ExplainResult>(
       `/api/roads/${cityId}/segments/${encodeURIComponent(segId)}/design/explain`,
+      "POST",
+      body,
+    ),
+
+  explainOption: (cityId: string, segId: string, optionId: string, body: { context: string[]; row_m?: number }) =>
+    sendJson<ExplainOneResult>(
+      `/api/roads/${cityId}/segments/${encodeURIComponent(segId)}/design/explain/${encodeURIComponent(optionId)}`,
       "POST",
       body,
     ),

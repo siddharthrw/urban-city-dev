@@ -193,7 +193,7 @@ Covers M0 through M7 for the Roads module (Chennai first).
 
 ---
 
-## M7 — Narrow Road Options ⬜
+## M7 — Narrow Road Options ✅
 
 **Goal:** Roads under ~9.6 m get at least one valid design option instead of "NOT POSSIBLE AT THIS WIDTH".
 
@@ -208,6 +208,28 @@ Covers M0 through M7 for the Roads module (Chennai first).
 - Property tests: extend hypothesis suite to cover 5–9.5 m range
 
 **Done when:** Clicking an 8 m residential street produces at least one design option, correctly labelled as a narrow-street fallback.
+
+---
+
+---
+
+## M8 — Per-option Inline Explanations ✅
+
+**Goal:** Each design option shows an LLM explanation in its own card, below the cross-section diagram, loaded on demand per option.
+
+**What was built:**
+- `explain_one(result, option_id)` in `explain.py`: builds a focused single-option prompt, calls the LLM, validates citations. Faster than the full explain (one LLM call for one option, not all options).
+- `POST /{city}/segments/{seg_id}/design/explain/{option_id}` endpoint: runs design, checks option exists, calls `explain_one`. Returns `{explanation: str, warnings: [str]}`.
+- Removed global "Explain options" button from DesignPanel.
+- Each `OptionCard` now has its own "Explain this option" button below the rules section.
+- Explanation renders below the CrossSection diagram (not above it) with a "Regenerate explanation" link once loaded.
+- Per-option LLM errors and citation warnings shown inline in the card.
+- 8 new backend tests (build_prompt_one, explain_one unit, per-option endpoint); 4 frontend tests updated/added.
+
+**Key decisions:**
+- Per-option rather than all-at-once: slower total if you explain everything, but faster for one option and closer to where you are looking.
+- Explanation state is local to `OptionCard` so switching roads resets it automatically.
+- Global `/design/explain` endpoint kept for the PDF export path.
 
 ---
 

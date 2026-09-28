@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import SourceBadge from "../../../core/rules/SourceBadge";
 import { CONFIDENCE } from "../../../core/provenance";
 import CrossSection from "./CrossSection";
-import { CONTEXT_FLAGS, designApi, type DesignOption, type DesignResult, type ExplainResult } from "./api";
+import { CONTEXT_FLAGS, designApi, type DesignOption, type DesignResult } from "./api";
 
 const CONFIDENCE_KEY = (s: string): keyof typeof CONFIDENCE =>
   s in CONFIDENCE ? (s as keyof typeof CONFIDENCE) : "estimated";
@@ -33,9 +33,6 @@ export default function DesignPanel({ cityId, segId, roadWidthM, roadWidthSource
   const [result, setResult] = useState<DesignResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [explanation, setExplanation] = useState<ExplainResult | null>(null);
-  const [explaining, setExplaining] = useState(false);
-  const [explainError, setExplainError] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [verifiedWidth, setVerifiedWidth] = useState<{ width_m: number; source: string } | null>(null);
@@ -49,8 +46,6 @@ export default function DesignPanel({ cityId, segId, roadWidthM, roadWidthSource
       }
       setLoading(true);
       setError(null);
-      setExplanation(null);
-      setExplainError(null);
       try {
         setResult(await designApi.design(cityId, segId, { context: ctx, row_m: w }));
       } catch (e) {
@@ -61,19 +56,6 @@ export default function DesignPanel({ cityId, segId, roadWidthM, roadWidthSource
     },
     [cityId, segId],
   );
-
-  const runExplain = useCallback(async () => {
-    const w = Number(width);
-    setExplaining(true);
-    setExplainError(null);
-    try {
-      setExplanation(await designApi.explain(cityId, segId, { context, row_m: w }));
-    } catch (e) {
-      setExplainError((e as Error).message);
-    } finally {
-      setExplaining(false);
-    }
-  }, [cityId, segId, context, width]);
 
   const runDownloadPdf = useCallback(async () => {
     const w = Number(width);
@@ -118,8 +100,6 @@ export default function DesignPanel({ cityId, segId, roadWidthM, roadWidthSource
   useEffect(() => {
     setWidth(String(roadWidthM));
     setContext([]);
-    setExplanation(null);
-    setExplainError(null);
     setVerifiedWidth(null);
     run([], String(roadWidthM));
     // Re-run only when a different road segment is opened.
@@ -182,24 +162,16 @@ export default function DesignPanel({ cityId, segId, roadWidthM, roadWidthSource
               {loading ? "Designing…" : "Update design"}
             </button>
             {result && (
-              <>
-                <button onClick={runExplain} disabled={explaining}
-                  aria-label="Explain options"
-                  className="rounded border border-blue-300 bg-blue-50 px-3 py-1.5 text-sm text-blue-700 hover:bg-blue-100 disabled:opacity-50">
-                  {explaining ? "Explaining…" : "Explain options"}
-                </button>
-                <button onClick={runDownloadPdf} disabled={downloading}
-                  aria-label="Export PDF"
-                  className="rounded border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-50">
-                  {downloading ? "Generating…" : "Export PDF"}
-                </button>
-              </>
+              <button onClick={runDownloadPdf} disabled={downloading}
+                aria-label="Export PDF"
+                className="rounded border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-50">
+                {downloading ? "Generating…" : "Export PDF"}
+              </button>
             )}
           </div>
         </section>
 
         {error && <p className="text-red-600">{error}</p>}
-        {explainError && <p className="text-red-600">{explainError}</p>}
 
         {result && (
           <>
@@ -207,17 +179,6 @@ export default function DesignPanel({ cityId, segId, roadWidthM, roadWidthSource
               <ul className="space-y-1 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900" aria-label="Warnings">
                 {result.warnings.map((w) => <li key={w}>⚠ {w}</li>)}
               </ul>
-            )}
-
-            {explanation?.explanation_warnings.map((w) => (
-              <p key={w} className="text-xs text-amber-800">⚠ {w}</p>
-            ))}
-
-            {explanation?.comparison && (
-              <section className="rounded-md border border-blue-100 bg-blue-50 p-3 text-sm text-blue-900" aria-label="AI recommendation">
-                <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-blue-600">AI Recommendation</p>
-                <p>{explanation.comparison}</p>
-              </section>
             )}
 
             <details className="text-xs">
@@ -236,7 +197,7 @@ export default function DesignPanel({ cityId, segId, roadWidthM, roadWidthSource
 
             {result.options.map((o) => (
               <OptionCard key={o.option_id} option={o} result={result}
-                explanation={explanation?.explanations[o.option_id] ?? null} />
+                cityId={cityId} segId={segId} context={context} width={width} />
             ))}
 
             {result.dropped.length > 0 && (
@@ -259,15 +220,39 @@ export default function DesignPanel({ cityId, segId, roadWidthM, roadWidthSource
   );
 }
 
-function OptionCard({ option: o, result, explanation }: { option: DesignOption; result: DesignResult; explanation: string | null }) {
+function OptionCard({ option: o, result, cityId, segId, context, width }: {
+  option: DesignOption;
+  result: DesignResult;
+  cityId: string;
+  segId: string;
+  context: string[];
+  width: string;
+}) {
   const m = o.metrics;
+  const [explanation, setExplanation] = useState<string | null>(null);
+  const [explaining, setExplaining] = useState(false);
+  const [explainError, setExplainError] = useState<string | null>(null);
+  const [explainWarnings, setExplainWarnings] = useState<string[]>([]);
+
+  const handleExplain = async () => {
+    const w = Number(width);
+    setExplaining(true);
+    setExplainError(null);
+    try {
+      const res = await designApi.explainOption(cityId, segId, o.option_id, { context, row_m: w });
+      setExplanation(res.explanation);
+      setExplainWarnings(res.warnings);
+    } catch (e) {
+      setExplainError((e as Error).message);
+    } finally {
+      setExplaining(false);
+    }
+  };
+
   return (
     <section className="rounded-lg border border-slate-200 p-3" aria-label={o.name}>
       <h3 className="text-sm font-semibold">{o.name}</h3>
       <p className="mb-2 text-xs text-slate-600">{o.summary}</p>
-      {explanation && (
-        <p className="mb-2 text-xs text-blue-800" aria-label={`AI explanation for ${o.name}`}>{explanation}</p>
-      )}
       <CrossSection elements={o.elements} rowCm={result.row_cm} title={o.name} />
       <dl className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-xs">
         <Metric label="Lanes" value={String(m.lanes)} />
@@ -301,6 +286,30 @@ function OptionCard({ option: o, result, explanation }: { option: DesignOption; 
           {o.uses_fallback_minimums && <li className="text-amber-800">Some elements had no rule; an UNCITED default minimum was used.</li>}
         </ul>
       </details>
+
+      <div className="mt-3 border-t border-slate-100 pt-3">
+        {explanation ? (
+          <>
+            {explainWarnings.map((w) => <p key={w} className="mb-1 text-xs text-amber-800">⚠ {w}</p>)}
+            <p className="text-xs text-slate-700 leading-relaxed" aria-label={`AI explanation for ${o.name}`}>
+              {explanation}
+            </p>
+            <button onClick={handleExplain} disabled={explaining}
+              className="mt-1.5 text-xs text-blue-600 hover:underline disabled:opacity-50">
+              {explaining ? "Regenerating…" : "Regenerate explanation"}
+            </button>
+          </>
+        ) : (
+          <>
+            {explainError && <p className="mb-1 text-xs text-red-600">{explainError}</p>}
+            <button onClick={handleExplain} disabled={explaining}
+              aria-label={`Explain ${o.name}`}
+              className="rounded border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs text-blue-700 hover:bg-blue-100 disabled:opacity-50">
+              {explaining ? "Generating explanation…" : "Explain this option"}
+            </button>
+          </>
+        )}
+      </div>
     </section>
   );
 }

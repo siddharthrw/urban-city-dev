@@ -14,7 +14,7 @@ from core.text import normalize_name
 from modules.roads import hooks, linking
 from modules.roads.design import engine
 from modules.roads.design.demand import Demand, build_demand
-from modules.roads.design.explain import explain as _explain
+from modules.roads.design.explain import explain as _explain, explain_one as _explain_one
 from modules.roads.design.pdf import build_pdf
 
 NAME = "roads"
@@ -198,6 +198,24 @@ def explain_segment(city_id: str, seg_id: str, body: ExplainBody = ExplainBody()
     exp = _explain(result)
     return {**result, "explanations": exp["explanations"], "comparison": exp["comparison"],
             "explanation_warnings": exp["warnings"]}
+
+
+@router.post("/{city_id}/segments/{seg_id}/design/explain/{option_id}")
+def explain_option(city_id: str, seg_id: str, option_id: str, body: ExplainBody = ExplainBody()):
+    """Explain a single design option in plain English (M8).
+
+    Runs the design engine, then asks the LLM to explain just the requested option.
+    Faster than the full /explain endpoint because only one option is sent to the LLM.
+    Returns {"explanation": str, "warnings": [str]}.
+    If the LLM is unavailable the explanation is empty and warnings says so.
+    """
+    _require_layer(city_id)
+    _, result = _design_for(city_id, seg_id, body.context, body.row_m)
+    available = [o["option_id"] for o in result["options"]]
+    if option_id not in available:
+        raise HTTPException(404, f"Option '{option_id}' not in design result. Available: {available}")
+    exp = _explain_one(result, option_id)
+    return {"explanation": exp["explanation"], "warnings": exp["warnings"]}
 
 
 @router.get("/{city_id}/segments/{seg_id}/design/pdf")

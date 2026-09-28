@@ -1,7 +1,7 @@
 """Unit tests for the LLM explanation module (explain.py)."""
 import pytest
 
-from modules.roads.design.explain import build_prompt, explain, unknown_citations
+from modules.roads.design.explain import build_prompt, build_prompt_one, explain, explain_one, unknown_citations
 
 _RULES = {
     "footpath_min_width": {
@@ -221,3 +221,87 @@ def test_explain_endpoint_validation_errors(client):
                        json={"context": ["earthquake"]}).status_code == 422
     assert client.post("/api/roads/chennai/segments/1-2-0/design/explain",
                        json={"row_m": 1}).status_code == 422
+
+
+# ---------- M8: build_prompt_one + explain_one unit tests ----------
+
+def test_build_prompt_one_includes_only_the_requested_option():
+    p = build_prompt_one(_RESULT, "balanced")
+    assert "balanced" in p
+    assert "Footpath 2.5 m" in p
+    # The other option's text should NOT be in the per-option prompt
+    assert "traffic" not in p or p.index("balanced") < p.index("traffic")
+
+
+def test_build_prompt_one_for_unknown_option_returns_empty():
+    assert build_prompt_one(_RESULT, "nonexistent") == ""
+
+
+def test_explain_one_returns_text_on_success(monkeypatch):
+    import modules.roads.design.explain as explain_mod
+
+    monkeypatch.setattr(explain_mod, "chat_json", lambda *a, **kw: {
+        "explanation": "A balanced layout with wide footpaths and cycle tracks."
+    })
+    result = explain_one(_RESULT, "balanced")
+    assert result["explanation"] == "A balanced layout with wide footpaths and cycle tracks."
+    assert result["warnings"] == []
+
+
+def test_explain_one_flags_unknown_rule_citations(monkeypatch):
+    import modules.roads.design.explain as explain_mod
+
+    monkeypatch.setattr(explain_mod, "chat_json", lambda *a, **kw: {
+        "explanation": "See irc_103_clause4 for details."
+    })
+    result = explain_one(_RESULT, "balanced")
+    assert any("irc_103_clause4" in w for w in result["warnings"])
+    assert "irc_103_clause4" in result["explanation"]
+
+
+def test_explain_one_returns_empty_on_llm_error(monkeypatch):
+    import modules.roads.design.explain as explain_mod
+    from core.llm.client import LLMError
+
+    def _fail(*a, **kw):
+        raise LLMError("no server")
+
+    monkeypatch.setattr(explain_mod, "chat_json", _fail)
+    result = explain_one(_RESULT, "balanced")
+    assert result["explanation"] == ""
+    assert any("unavailable" in w.lower() for w in result["warnings"])
+
+
+def test_explain_one_returns_error_for_unknown_option():
+    result = explain_one(_RESULT, "nonexistent")
+    assert result["explanation"] == ""
+    assert result["warnings"]
+
+
+# ---------- M8: per-option explain endpoint ----------
+
+def test_explain_option_endpoint_returns_explanation_and_warnings(client):
+    r = client.post("/api/roads/chennai/segments/1-2-0/design/explain/traffic",
+                    json={"row_m": 20})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert "explanation" in body
+    assert "warnings" in body
+    assert isinstance(body["explanation"], str)
+    assert isinstance(body["warnings"], list)
+
+
+def test_explain_option_endpoint_404_on_unknown_option(client):
+    r = client.post("/api/roads/chennai/segments/1-2-0/design/explain/nonexistent", json={})
+    assert r.status_code == 404
+
+
+def test_explain_option_endpoint_404_on_unknown_segment(client):
+    r = client.post("/api/roads/chennai/segments/nope/design/explain/traffic", json={})
+    assert r.status_code == 404
+
+
+def test_explain_option_endpoint_validates_context(client):
+    r = client.post("/api/roads/chennai/segments/1-2-0/design/explain/traffic",
+                    json={"context": ["earthquake"]})
+    assert r.status_code == 422

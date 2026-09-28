@@ -6,7 +6,7 @@ import DesignPanel from "./DesignPanel";
 
 vi.mock("./api", async (orig) => ({
   ...(await orig<typeof import("./api")>()),
-  designApi: { design: vi.fn(), explain: vi.fn(), downloadPdf: vi.fn() },
+  designApi: { design: vi.fn(), explain: vi.fn(), explainOption: vi.fn(), downloadPdf: vi.fn(), setVerifiedWidth: vi.fn() },
 }));
 
 const e = (kind: DesignElement["kind"], cm: number, side: DesignElement["side"] = "left"): DesignElement => ({
@@ -38,6 +38,7 @@ const props = { cityId: "chennai", segId: "1-2-0", roadWidthM: 9.6, roadWidthSou
 beforeEach(() => {
   vi.mocked(designApi.design).mockReset().mockResolvedValue(RESULT);
   vi.mocked(designApi.explain).mockReset();
+  vi.mocked(designApi.explainOption).mockReset();
   vi.mocked(designApi.downloadPdf).mockReset();
   props.onBack.mockReset();
   props.onClose.mockReset();
@@ -148,73 +149,53 @@ describe("DesignPanel", () => {
     expect(screen.getByText(/Needs at least 16 m/)).toBeInTheDocument();
   });
 
-  it("shows explain and export PDF buttons after design loads", async () => {
+  it("shows an Export PDF button and a per-option Explain button after design loads", async () => {
     render(<DesignPanel {...props} />);
     await screen.findByText("Traffic priority");
-    expect(screen.getByRole("button", { name: "Explain options" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Export PDF" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Explain Traffic priority" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Explain options" })).not.toBeInTheDocument();
   });
 
-  it("calls explain and shows comparison and per-option explanations", async () => {
+  it("calls explainOption and shows the explanation below the diagram", async () => {
     const user = userEvent.setup();
-    const explainResult = {
-      ...RESULT,
-      explanations: { traffic: "This layout maximises vehicle throughput on the road." },
-      comparison: "The traffic option is best for this arterial road.",
-      explanation_warnings: [],
-    };
-    vi.mocked(designApi.explain).mockResolvedValue(explainResult);
-    render(<DesignPanel {...props} />);
-    await screen.findByText("Traffic priority");
-    await user.click(screen.getByRole("button", { name: "Explain options" }));
-    await waitFor(() => {
-      expect(screen.getByText("The traffic option is best for this arterial road.")).toBeInTheDocument();
-    });
-    expect(screen.getByText("This layout maximises vehicle throughput on the road.")).toBeInTheDocument();
-    expect(designApi.explain).toHaveBeenCalledWith("chennai", "1-2-0", { context: [], row_m: 9.6 });
-  });
-
-  it("shows explanation_warnings from the LLM", async () => {
-    const user = userEvent.setup();
-    vi.mocked(designApi.explain).mockResolvedValue({
-      ...RESULT,
-      explanations: { traffic: "Some text." },
-      comparison: "",
-      explanation_warnings: ["Explanation for 'traffic' cited unknown rule IDs: irc_103."],
+    vi.mocked(designApi.explainOption).mockResolvedValue({
+      explanation: "This layout maximises vehicle throughput on the road.",
+      warnings: [],
     });
     render(<DesignPanel {...props} />);
     await screen.findByText("Traffic priority");
-    await user.click(screen.getByRole("button", { name: "Explain options" }));
+    await user.click(screen.getByRole("button", { name: "Explain Traffic priority" }));
+    await waitFor(() =>
+      expect(screen.getByText("This layout maximises vehicle throughput on the road.")).toBeInTheDocument()
+    );
+    expect(designApi.explainOption).toHaveBeenCalledWith("chennai", "1-2-0", "traffic", { context: [], row_m: 9.6 });
+    // Regenerate button replaces the Explain button
+    expect(screen.getByRole("button", { name: /Regenerate/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Explain Traffic priority" })).not.toBeInTheDocument();
+  });
+
+  it("shows per-option explanation warnings from the LLM", async () => {
+    const user = userEvent.setup();
+    vi.mocked(designApi.explainOption).mockResolvedValue({
+      explanation: "Some text.",
+      warnings: ["Explanation cited unknown rule IDs: irc_103."],
+    });
+    render(<DesignPanel {...props} />);
+    await screen.findByText("Traffic priority");
+    await user.click(screen.getByRole("button", { name: "Explain Traffic priority" }));
     await waitFor(() => expect(screen.getByText(/irc_103/)).toBeInTheDocument());
   });
 
-  it("shows an explain error when the call fails", async () => {
+  it("shows an error in the option card when the explain call fails", async () => {
     const user = userEvent.setup();
-    vi.mocked(designApi.explain).mockRejectedValue(new Error("LLM unavailable"));
+    vi.mocked(designApi.explainOption).mockRejectedValue(new Error("LLM unavailable"));
     render(<DesignPanel {...props} />);
     await screen.findByText("Traffic priority");
-    await user.click(screen.getByRole("button", { name: "Explain options" }));
+    await user.click(screen.getByRole("button", { name: "Explain Traffic priority" }));
     await waitFor(() => expect(screen.getByText("LLM unavailable")).toBeInTheDocument());
-  });
-
-  it("resets explanation when Update design is clicked", async () => {
-    const user = userEvent.setup();
-    vi.mocked(designApi.explain).mockResolvedValue({
-      ...RESULT,
-      explanations: { traffic: "Some explanation." },
-      comparison: "Use traffic.",
-      explanation_warnings: [],
-    });
-    render(<DesignPanel {...props} />);
-    await screen.findByText("Traffic priority");
-    await user.click(screen.getByRole("button", { name: "Explain options" }));
-    await waitFor(() => expect(screen.getByText("Use traffic.")).toBeInTheDocument());
-    // Change width and update design: explanation should disappear
-    const widthInput = screen.getByLabelText("Right-of-way width in metres");
-    await user.clear(widthInput);
-    await user.type(widthInput, "18");
-    await user.click(screen.getByRole("button", { name: "Update design" }));
-    await waitFor(() => expect(screen.queryByText("Use traffic.")).not.toBeInTheDocument());
+    // Explain button remains (so the user can retry)
+    expect(screen.getByRole("button", { name: "Explain Traffic priority" })).toBeInTheDocument();
   });
 
   it("calls downloadPdf when Export PDF is clicked", async () => {

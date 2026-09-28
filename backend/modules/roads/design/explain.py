@@ -107,6 +107,77 @@ def unknown_citations(text: str, known_ids: set[str]) -> list[str]:
     return sorted(found - known_ids - _KNOWN_NON_RULE)
 
 
+def build_prompt_one(result: dict, option_id: str) -> str:
+    """Build a focused LLM prompt for a single design option."""
+    opt = next((o for o in result.get("options", []) if o["option_id"] == option_id), None)
+    if opt is None:
+        return ""
+    seg = result.get("segment", {})
+    name = seg.get("name") or "Unnamed road"
+    known_ids = sorted(result.get("rules", {}).keys())
+
+    lines = [
+        f"Road: {name}",
+        f"Right-of-way: {result['row_m']:g} m ({result['width_source']})",
+        f"Type: {result['road_class'].replace('_', ' ')}, "
+        f"{'one-way' if result['oneway'] else 'two-way'}",
+        "",
+        "=== DESIGN OPTION ===",
+        "",
+        _option_text(opt, result.get("rules", {})),
+    ]
+    if result.get("dropped"):
+        lines += ["", "=== NOT POSSIBLE AT THIS WIDTH ==="]
+        for d in result["dropped"]:
+            lines.append(f"- {d['name']}: {d['reason']}")
+    if result.get("warnings"):
+        lines += ["", "=== NOTES / WARNINGS ==="]
+        lines += [f"- {w}" for w in result["warnings"]]
+    lines += [
+        "",
+        "=== YOUR TASK ===",
+        f"Write 2-3 sentences of plain English explaining this design option ('{option_id}') "
+        "to a planning official. Be factual and concise.",
+        'Return a JSON object with exactly one key:',
+        '  "explanation": your 2-3 sentence explanation.',
+        "",
+        "Rule IDs you may cite (exact IDs only, no others): "
+        + (", ".join(known_ids) if known_ids else "none — all rules are uncited placeholders"),
+    ]
+    return "\n".join(lines)
+
+
+def explain_one(result: dict, option_id: str, *, cfg: Settings = settings) -> dict:
+    """Return an LLM explanation for a single design option.
+
+    Returns::
+
+        {"explanation": str, "warnings": [str, ...]}
+
+    Never raises: LLM failures become warnings with an empty explanation.
+    """
+    opt = next((o for o in result.get("options", []) if o["option_id"] == option_id), None)
+    if opt is None:
+        return {"explanation": "", "warnings": [f"Option '{option_id}' not found."]}
+
+    known_ids = set(result.get("rules", {}).keys())
+    prompt = build_prompt_one(result, option_id)
+    try:
+        raw = chat_json(prompt, _SYSTEM, timeout=90, cfg=cfg)
+    except LLMError as e:
+        return {"explanation": "", "warnings": [f"LLM unavailable — explanation could not be generated: {e}"]}
+
+    text = str(raw.get("explanation", ""))
+    warnings: list[str] = []
+    unknown = unknown_citations(text, known_ids)
+    if unknown:
+        warnings.append(
+            f"Explanation cited unknown rule IDs: {', '.join(unknown)}. "
+            "Shown as-is; verify before using officially."
+        )
+    return {"explanation": text, "warnings": warnings}
+
+
 def explain(result: dict, *, cfg: Settings = settings) -> dict:
     """Return LLM explanations for the design options in `result`.
 
