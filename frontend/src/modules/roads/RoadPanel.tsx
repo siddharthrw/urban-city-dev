@@ -1,6 +1,8 @@
+import { useState } from "react";
 import { formatLength, formatValue, nameMatchLabel } from "../../core/format";
 import { CONFIDENCE } from "../../core/provenance";
 import type { SegmentResponse } from "./api";
+import MapillaryViewer from "./MapillaryViewer";
 
 const CLASS_LABEL: Record<string, string> = {
   motorway: "Motorway", trunk: "Trunk road", primary: "Primary (main road)", secondary: "Secondary",
@@ -12,15 +14,17 @@ type Props = {
   data: SegmentResponse | null;
   loading: boolean;
   error: string | null;
+  lngLat?: { lng: number; lat: number };
   onClose: () => void;
   onZoomToRoad: () => void;
   onDesign?: () => void;
 };
 
-export default function RoadPanel({ data, loading, error, onClose, onZoomToRoad, onDesign }: Props) {
+export default function RoadPanel({ data, loading, error, lngLat, onClose, onZoomToRoad, onDesign }: Props) {
   const s = data?.segment;
   const conf = s ? CONFIDENCE[s.width_source] : null;
   const officialLabel = data?.official_name_source?.name ?? "Official";
+  const [showStreetView, setShowStreetView] = useState(false);
 
   return (
     <div className="absolute right-3 top-3 z-10 max-h-[calc(100%-1.5rem)] w-96 max-w-[calc(100%-1.5rem)] overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-lg">
@@ -103,6 +107,22 @@ export default function RoadPanel({ data, loading, error, onClose, onZoomToRoad,
                 className="w-full rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700">
                 Design this road
               </button>
+            )}
+
+            {lngLat && (
+              <div>
+                <button
+                  onClick={() => setShowStreetView((v) => !v)}
+                  className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                >
+                  {showStreetView ? "Hide street view" : "Street view"}
+                </button>
+                {showStreetView && (
+                  <div className="mt-2">
+                    <MapillaryViewer lngLat={lngLat} />
+                  </div>
+                )}
+              </div>
             )}
 
             {data!.linked_data.length > 0 && (

@@ -11,6 +11,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "mapillary-js": "^4.1.2",
     "maplibre-gl": "^6.11.2",
     "pmtiles": "^4.5.0",
     "react": "^19.3.0",

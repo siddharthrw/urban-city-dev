@@ -35,6 +35,7 @@ export default function App() {
   const [seg, setSeg] = useState<SegmentResponse | null>(null);
   const [segLoading, setSegLoading] = useState(false);
   const [segError, setSegError] = useState<string | null>(null);
+  const [clickLngLat, setClickLngLat] = useState<{ lng: number; lat: number } | null>(null);
   const [pickedRoad, setPickedRoad] = useState<SearchHit | null>(null);
   const [feature, setFeature] = useState<ImportedHit | null>(null);
   const [dataVersion, setDataVersion] = useState(0);
@@ -121,8 +122,13 @@ export default function App() {
       }
       setFeature(null);
       setSegId(id);
-      if (id) keepClearOfPanel(map, e.point);
-      else setPickedRoad(null);
+      if (id) {
+        setClickLngLat({ lng: e.lngLat.lng, lat: e.lngLat.lat });
+        keepClearOfPanel(map, e.point);
+      } else {
+        setClickLngLat(null);
+        setPickedRoad(null);
+      }
     };
     const move = (e: maplibregl.MapMouseEvent) => {
       const over = !!queryImported(map, layersRef.current, e.point) || !!roadAt(map, e.point);
@@ -251,7 +257,8 @@ export default function App() {
             )}
             {segId && !designing && (
               <RoadPanel data={seg} loading={segLoading} error={segError}
-                onClose={() => { setSegId(null); setPickedRoad(null); }}
+                lngLat={clickLngLat ?? undefined}
+                onClose={() => { setSegId(null); setPickedRoad(null); setClickLngLat(null); }}
                 onZoomToRoad={() => seg?.road && fit(seg.road.bbox)}
                 onDesign={() => setDesigning(true)} />
             )}
