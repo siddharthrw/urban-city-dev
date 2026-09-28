@@ -94,3 +94,23 @@ options:
     surplus_weights: { footpath: 4, tree_strip: 2 }
     soft_max_m: { footpath: 6.0, tree_strip: 3.0 }
     sinks: [footpath, tree_strip]
+  narrow:
+    # Only offered when the road is too narrow for any standard layout (max_row_m).
+    # shared_lane: true forces a single shared carriageway (both directions) regardless of oneway flag.
+    # Minimum: 1 lane (3.0 m) + 2 footpaths (1.8 m each) = 6.6 m.
+    # For roads 5.0–6.5 m all options drop; 6.6–9.5 m this option fits; ≥ 9.6 m standard options apply.
+    name: "Narrow shared street"
+    summary: "One shared carriageway used by both directions, with footpaths on both sides. Requires signage, surface treatment, and speed management not modelled here."
+    max_dir_lanes: 1
+    shared_lane: true
+    max_row_m: 9.5
+    two_way_only: true    # one-way narrow roads are handled by Traffic priority already
+    targets_m: { footpath: 2.5, lane: 3.5 }
+    required: [footpath, lane]
+    optional: []
+    optional_drop_order: []
+    lanes_first: false
+    median_from_row_m: null
+    surplus_weights: { footpath: 1 }
+    soft_max_m: { footpath: 4.0 }
+    sinks: [footpath]

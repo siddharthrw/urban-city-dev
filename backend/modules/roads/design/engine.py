@@ -148,8 +148,17 @@ def design(*, row_m: float, road_class: str, oneway: bool, context: set[str] | f
 
     bus = "bus_route" in context or bool(demand.bus_stops)
     options, dropped, used_rules = [], [], set()
-    for key in ("balanced", "traffic", "walking"):
-        opt = cfg["options"][key]
+    for key in ("balanced", "traffic", "walking", "narrow"):
+        opt = cfg["options"].get(key)
+        if opt is None:
+            continue
+        # max_row_m / min_row_m: skip options that only apply to certain road widths
+        if opt.get("max_row_m") is not None and row_cm > cm(opt["max_row_m"]):
+            continue
+        if opt.get("min_row_m") is not None and row_cm < cm(opt["min_row_m"]):
+            continue
+        if opt.get("two_way_only") and oneway:
+            continue
         result = _build(key, opt, row_cm=row_cm, road_class=road_class, oneway=oneway, context=context,
                         demand=demand, ruleset=ruleset, cfg=cfg, dir_lanes=dir_lanes, dir_cap=cls["dir_cap"],
                         bus=bus, n_min=n_min, step=step)
@@ -178,6 +187,12 @@ def design(*, row_m: float, road_class: str, oneway: bool, context: set[str] | f
             warnings.append(note)
     if not options:
         warnings.append("No layout satisfies the rules at this width. See the reasons for each dropped option.")
+    elif all(o["option_id"] == "narrow" for o in options):
+        warnings.append(
+            "This road is below the minimum width for a standard layout (footpath + lanes + footpath). "
+            "The narrow shared street option is a fallback — it requires physical speed management "
+            "(speed tables, raised junctions, or shared-surface paving) that is not drawn here."
+        )
 
     return {"row_m": row_cm / 100, "row_cm": row_cm, "road_class": road_class, "oneway": oneway,
             "width_source": width_source, "context": sorted(context), "inputs": inputs,
@@ -218,6 +233,13 @@ def _build(key, opt, *, row_cm, road_class, oneway, context, demand, ruleset, cf
     dir_opt = dir_cap if opt["max_dir_lanes"] == "cap" else min(dir_lanes, opt["max_dir_lanes"], dir_cap)
     n = dir_opt * (1 if oneway else 2)
 
+    # shared_lane: single shared carriageway regardless of road direction.
+    # Treat it like a one-way road for layout purposes (one central lane).
+    layout_oneway = oneway or bool(opt.get("shared_lane"))
+    if opt.get("shared_lane"):
+        n = 1
+        n_min = 1  # override: 1 shared lane is the floor for this option
+
     try:  # only for the elements this option can contain
         cons = {k: ruleset.constraint(k, road_class, set(context) | ({"one_way"} if k == "cycle_track" else set()))
                 for k in set(required) | set(optional) | {"lane"}}
@@ -228,7 +250,7 @@ def _build(key, opt, *, row_cm, road_class, oneway, context, demand, ruleset, cf
     omitted, notes = [], []
 
     def total(n_, kinds_):
-        return sum(cons[k].min_cm for k, _ in _layout(n_, kinds_, oneway))
+        return sum(cons[k].min_cm for k, _ in _layout(n_, kinds_, layout_oneway))
 
     n0 = n
     order = ["lanes", "drop"] if opt["lanes_first"] else ["drop", "lanes"]
@@ -255,6 +277,10 @@ def _build(key, opt, *, row_cm, road_class, oneway, context, demand, ruleset, cf
     if n < n0:
         notes.append(f"Lanes reduced from {n0} to {n} so the option fits.")
 
+    if opt.get("shared_lane"):
+        notes.append("Single shared carriageway — both traffic directions share one lane. "
+                     "Requires speed tables, signage, and distinctive paving to be safe.")
+
     targets = {k: cm(opt["targets_m"].get(k, cfg["fallback_min_m"][k])) for k in KIND_LABEL}
     add = sum(cfg["context_effects"].get(f, {}).get("footpath_target_add_m", 0) for f in context)
     if add:
@@ -269,7 +295,7 @@ def _build(key, opt, *, row_cm, road_class, oneway, context, demand, ruleset, cf
                          f"({cfg['pedestrians_per_metre_per_hour']:,} people/metre/hour + {cfg['footpath_furniture_allowance_m']} m "
                          "edge allowance, UNCITED settings).")
 
-    slots = _layout(n, kinds, oneway)
+    slots = _layout(n, kinds, layout_oneway)
     try:
         widths = _allocate(row_cm, slots, cons, targets, opt)
     except _Unplaceable as e:

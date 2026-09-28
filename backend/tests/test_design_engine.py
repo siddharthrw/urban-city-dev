@@ -69,15 +69,21 @@ def test_narrow_road_drops_options_with_specific_reasons():
 
 def test_road_too_narrow_for_anything_returns_no_options_and_says_why():
     res = go(6)
-    assert res["options"] == [] and len(res["dropped"]) == 3
+    assert res["options"] == [] and len(res["dropped"]) == 4  # balanced, traffic, walking, narrow
     assert any("No layout" in w for w in res["warnings"])
     assert "9.6 m" in next(d for d in res["dropped"] if d["option_id"] == "traffic")["reason"]
+    assert "6.6 m" in next(d for d in res["dropped"] if d["option_id"] == "narrow")["reason"]
 
 
 def test_one_way_road_needs_less_width():
-    # One lane (3.0) + two footpaths (2 x 1.8) = 6.6 m; a two-way road needs 9.6 m.
+    # One-way: 1 lane (3.0) + 2 footpaths (1.8 each) = 6.6 m.
     assert go(6.6, oneway=True)["options"] and not go(6.59, oneway=True)["options"]
-    assert not go(9.0)["options"] and go(9.6)["options"]
+    # Two-way 6.5 m: all options drop (below 6.6 m narrow minimum)
+    assert not go(6.5)["options"]
+    # Two-way 9.0 m: narrow shared street fits (6.6 m ≤ 9.0 ≤ 9.5 m window)
+    assert {o["option_id"] for o in go(9.0)["options"]} == {"narrow"}
+    # Two-way 9.6 m: standard options take over (narrow is filtered out at > 9.5 m)
+    assert any(o["option_id"] == "traffic" for o in go(9.6)["options"])
 
 
 def test_one_way_at_7m_gives_a_traffic_layout_with_one_lane_and_no_median():
@@ -286,3 +292,95 @@ def test_check_option_accepts_engine_output_and_rejects_tampering():
     o["elements"][0]["width_cm"] -= 60
     o["elements"][7]["width_cm"] -= 60
     assert any("above the maximum" in p for p in check(o))
+
+
+# ---------- M7: narrow shared street ----------
+
+def test_narrow_appears_only_in_6_6_to_9_5_range():
+    # Below the window: all options drop
+    assert go(6.5)["options"] == []
+    # Exactly at the lower bound: narrow fits
+    assert {o["option_id"] for o in go(6.6)["options"]} == {"narrow"}
+    # Mid-window: narrow only
+    assert {o["option_id"] for o in go(8.0)["options"]} == {"narrow"}
+    # Exactly at the upper bound: narrow still fits
+    assert {o["option_id"] for o in go(9.5)["options"]} == {"narrow"}
+    # One cm above: standard options take over, narrow is filtered
+    result = go(9.6)
+    option_ids = {o["option_id"] for o in result["options"]}
+    assert "narrow" not in option_ids
+    assert option_ids  # at least one standard option
+
+
+def test_narrow_is_not_offered_for_one_way_roads():
+    # One-way roads in the same width range get Traffic priority, not narrow
+    for w in (7.0, 8.0, 9.0, 9.5):
+        result = go(w, oneway=True)
+        option_ids = {o["option_id"] for o in result["options"]}
+        assert "narrow" not in option_ids, f"narrow appeared for one-way {w}m"
+        assert result["options"], f"no options for one-way {w}m"
+
+
+def test_narrow_layout_is_single_shared_carriageway():
+    o = option(go(8.0), "narrow")
+    lane_els = [e for e in o["elements"] if e["kind"] == "lane"]
+    assert len(lane_els) == 1
+    assert o["metrics"]["lanes"] == 1
+
+
+def test_narrow_footpaths_are_at_least_1_8m():
+    for w in (6.6, 7.0, 8.0, 9.0, 9.5):
+        o = option(go(w), "narrow")
+        fp_els = [e for e in o["elements"] if e["kind"] == "footpath"]
+        assert len(fp_els) == 2
+        for e in fp_els:
+            assert e["width_cm"] >= 180, f"footpath too narrow at {w}m: {e['width_cm']}cm"
+
+
+def test_narrow_total_equals_row():
+    for w in (6.6, 7.0, 8.0, 9.0, 9.5):
+        o = option(go(w), "narrow")
+        assert o["total_cm"] == round(w * 100)
+
+
+def test_narrow_drop_message_cites_6_6m_minimum():
+    # A road at 6.5m drops the narrow option; the reason should cite 6.6 m
+    dropped_narrow = next(d for d in go(6.5)["dropped"] if d["option_id"] == "narrow")
+    assert "6.6" in dropped_narrow["reason"]
+
+
+def test_narrow_not_in_dropped_when_too_wide():
+    # At 9.6m the narrow option is filtered by max_row_m BEFORE _build(), so it is
+    # silently skipped — it does not appear in dropped (only options that entered _build()
+    # and failed appear there).  Standard options should succeed instead.
+    result = go(9.6)
+    dropped_ids = [d["option_id"] for d in result["dropped"]]
+    assert "narrow" not in dropped_ids
+    assert result["options"]  # at least one standard option fits
+
+
+def test_narrow_warns_about_speed_management():
+    # When narrow is the only surviving option the engine emits a warning about
+    # physical speed management not being modelled
+    for w in (6.6, 8.0, 9.5):
+        result = go(w)
+        assert any("speed" in w_.lower() or "shared" in w_.lower() for w_ in result["warnings"]), \
+            f"no shared-street warning at {w}m"
+
+
+def test_narrow_note_mentions_shared_carriageway():
+    o = option(go(8.0), "narrow")
+    assert any("shared" in n.lower() for n in o["notes"])
+
+
+def test_narrow_context_raises_footpath_target():
+    # school_nearby adds 1.0m to footpath target; surplus should favour footpath
+    plain = option(go(9.0), "narrow")
+    school = option(go(9.0, context={"school_nearby"}), "narrow")
+    assert school["metrics"]["footpath_m"] >= plain["metrics"]["footpath_m"]
+
+
+@pytest.mark.parametrize("row_m", [6.6, 6.7, 7.0, 7.5, 8.0, 8.5, 9.0, 9.4, 9.5])
+def test_narrow_sum_exact_across_window(row_m):
+    o = option(go(row_m), "narrow")
+    assert o["total_cm"] == round(row_m * 100)
