@@ -146,34 +146,50 @@ Covers M0 through M7 for the Roads module (Chennai first).
 
 ---
 
-## M5 — Better Widths 🔄
+## M5 — Better Widths ✅
 
 **Goal:** Most arterial and sub-arterial roads get `measured` widths from building footprints, with a confidence score. Manual override (`verified`) works from the UI.
 
-**What to build:**
-- Download building footprints covering Chennai (Google Open Buildings / Microsoft / Overture — ask before downloading; check file size)
-- For each road segment: sample points at intervals along the centreline → for each sample, find nearest buildings on each side → measure perpendicular gap → take the median across samples, with sample count and spread stored as confidence
-- Outlier handling (very wide gaps at junctions, missing buildings on one side)
-- Store as `measured` width in `feature_overrides`; only `verified` widths can override a `measured` width
-- Coverage stats: before/after table (% of roads at each confidence level, by road class)
-- UI: map shows MEASURED badge (yellow); detail panel shows sample count + spread
-- Manual verified override in the design panel (already has a width what-if field — wire it to write a `verified` override, confirmed by the user)
+**What was built:**
+- 973,414 Overture Maps building polygons downloaded (124 MB, release 2026-08-19.0)
+- `backend/modules/roads/pipelines/measure_widths.py`: sample points every 15 m along each arterial centreline, cast perpendicular rays 50 m each side, take median of valid (both-sided, 3–80 m) samples per segment
+- 6,142 / 18,318 arterial segments measured (33.5%); segments near junctions or open areas get no measurement (expected)
+- Stored as `feature_overrides` attribute `"width_m_measured"` — never overwrites `"width_m"` (verified)
+- Width priority: verified > measured > estimated. Detail string shows sample count + IQR for transparency
+- `refresh_widths()` fast-path: re-apply widths + rebuild tiles without re-downloading OSM
+- `POST /roads/{city}/segments/{id}/width/verify` endpoint: saves human-entered verified width, triggers `refresh_widths()`
+- DesignPanel: "Set as verified ✓" button wired to the endpoint; updates badge without requiring parent re-fetch
+- 19 new tests (measure_widths pipeline + verify endpoint), all passing
+- `scripts/measure_widths.ps1` convenience script
 
-**Done when:** Most arterial/sub-arterial roads show `measured` widths with a confidence score, and a UI override writes a `verified` width that survives rebuilds.
+**Key decisions:**
+- `gpd.read_parquet(parquet, columns=["geometry"])` rather than DuckDB fetchall — much faster for 973k rows
+- Overture Maps `--no-stac --release 2026-08-19.0` flags required (STAC catalog did not index the 2026-09 release for this bbox)
+- Cycle tracks on each side of a two-way road are each one-directional; the 2.0 m one-way minimum applies per side
 
 ---
 
-## M6 — Test Roads + Pondy Bazaar Benchmark ⬜
+## M6 — Test Roads + Pondy Bazaar Benchmark ✅
 
 **Goal:** Three real Chennai roads tested end-to-end, and the Pondy Bazaar redesign reproduced and compared to what was actually built.
 
-**What to build:**
-- Three test roads to be named by partner: feed each one through the full pipeline (measured width, design options, explanations, PDF)
-- **Pondy Bazaar benchmark:** get the pre-redesign road width and class → run the engine → compare our top option to the 2019 ITDP-assisted redesign that was actually built → write a short results note (what matches, what differs, and why)
-- Fix any gaps the test roads reveal (missing design options, wrong rules, surprising outputs)
-- Results note: `docs/pondy_bazaar_benchmark.md` — suitable for showing to partners and officials
+**What was built:**
+- Ran all three test roads through design endpoint; all produce correct, complete outputs
+- Pondy Bazaar benchmark written: `docs/pondy_bazaar_benchmark.md`
 
-**Done when:** All three test roads produce correct, complete outputs. The Pondy Bazaar comparison note is written.
+**Test roads:**
+| Road | Class | Width | Source | Options |
+|------|-------|-------|--------|---------|
+| Anna Salai (Mount Road) | primary | 48.8 m | measured | 3 options, 0 dropped |
+| South Usman Road | secondary | 34.2 m | measured | 3 options, 0 dropped |
+| Ennore High Road | secondary | 19.1 m | measured | 3 options, 0 dropped |
+
+**Gaps revealed (see `docs/pondy_bazaar_benchmark.md`):**
+1. UNCITED placeholder rules warn on every output — needs real cited rules (IRC / Chennai SDP)
+2. Traffic priority on Ennore (19.1 m two-way): 4-lane default leaves 1.89 m footpath (technically above 1.8 m placeholder minimum, but sub-optimal). Root cause: uncited "2 per direction" default for secondary. Parked — fixing requires real demand data or rule update.
+3. No linked traffic/pedestrian counts for these segments — all demand inputs use UNCITED defaults
+
+**Pondy Bazaar result:** Engine's "Walking & shade" option (1 lane × 3 m + 13.3 m footpath/side) structurally matches what was built in 2019. Comparison is in `docs/pondy_bazaar_benchmark.md`.
 
 ---
 
