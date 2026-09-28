@@ -107,9 +107,9 @@ export default function MapillaryViewer({ lngLat }: Props) {
     );
   }
 
-  // Place pin + zoom 18 — reliable way to land at exact coordinates.
-  // The 3a street-view format requires a panorama ID to work without snapping.
-  const gmapsUrl = `https://www.google.com/maps/place/${lngLat.lat},${lngLat.lng}/@${lngLat.lat},${lngLat.lng},18z`;
+  // cbll = camera ball location → opens Google Maps directly in Street View mode.
+  // Google snaps to the nearest covered road — as precise as possible without a paid API.
+  const gmapsUrl = `https://www.google.com/maps?layer=c&cbll=${lngLat.lat},${lngLat.lng}&cbp=12,0,,0,0&z=18`;
 
   return (
     <div className="space-y-1">
@@ -134,7 +134,7 @@ export default function MapillaryViewer({ lngLat }: Props) {
         rel="noreferrer"
         className="flex items-center justify-center gap-1 rounded-md border border-slate-200 py-1 text-xs text-slate-500 hover:bg-slate-50 hover:text-slate-700"
       >
-        Open location in Google Maps ↗
+        Open in Google Street View ↗
       </a>
     </div>
   );
