@@ -19,6 +19,8 @@ import RoadSearch from "./modules/roads/RoadSearch";
 type Bbox = [number, number, number, number];
 type Page = "map" | "inbox" | "rules";
 
+const MAPILLARY_TOKEN = (import.meta.env.VITE_MAPILLARY_CLIENT_TOKEN as string) || "";
+
 export default function App() {
   const [page, setPage] = useState<Page>("map");
   const [cities, setCities] = useState<City[]>([]);
@@ -40,6 +42,7 @@ export default function App() {
   const [feature, setFeature] = useState<ImportedHit | null>(null);
   const [dataVersion, setDataVersion] = useState(0);
   const [designing, setDesigning] = useState(false);
+  const [showCoverage, setShowCoverage] = useState(false);
 
   const city = cities[0];
   const layersRef = useRef(layers);
@@ -141,6 +144,36 @@ export default function App() {
       map.off("mousemove", move);
     };
   }, [map]);
+
+  // Mapillary coverage lines — added once, then toggled visible/hidden.
+  useEffect(() => {
+    if (!map || !MAPILLARY_TOKEN) return;
+    const SOURCE = "mapillary-coverage";
+    const LAYER = "mapillary-sequences";
+    if (!map.getSource(SOURCE)) {
+      map.addSource(SOURCE, {
+        type: "vector",
+        tiles: [`https://tiles.mapillary.com/maps/vtp/mly1_public/2/{z}/{x}/{y}?access_token=${MAPILLARY_TOKEN}`],
+        minzoom: 6,
+        maxzoom: 14,
+      });
+      map.addLayer({
+        id: LAYER,
+        type: "line",
+        source: SOURCE,
+        "source-layer": "sequence",
+        minzoom: 6,
+        paint: {
+          "line-color": "#05CB63",
+          "line-width": ["interpolate", ["linear"], ["zoom"], 12, 1.5, 16, 3],
+          "line-opacity": 0.85,
+        },
+        layout: { visibility: showCoverage ? "visible" : "none" },
+      });
+    } else {
+      map.setLayoutProperty(LAYER, "visibility", showCoverage ? "visible" : "none");
+    }
+  }, [map, showCoverage]);
 
   // A different road (or none) is selected: leave design mode.
   useEffect(() => setDesigning(false), [segId]);
@@ -245,6 +278,20 @@ export default function App() {
                   </div>
                 );
               })}
+              {MAPILLARY_TOKEN && (
+                <div className="mb-4">
+                  <div className="text-sm font-medium">Street view</div>
+                  <div className="mt-1">
+                    <label className="flex items-center gap-2 text-sm">
+                      <input type="checkbox" checked={showCoverage}
+                        onChange={(e) => setShowCoverage(e.target.checked)} />
+                      <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: "#05CB63" }} />
+                      Mapillary coverage
+                    </label>
+                    <p className="ml-6 mt-0.5 text-xs text-slate-400">Green lines = streets with imagery. Click a green road for street view.</p>
+                  </div>
+                </div>
+              )}
             </section>
           </aside>
 
