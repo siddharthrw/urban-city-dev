@@ -11,10 +11,10 @@ type Props = {
 type Status = "loading" | "ok" | "no-coverage" | "error";
 
 async function nearestImageId(lngLat: { lng: number; lat: number }, token: string): Promise<string | null> {
-  const d = 0.0015; // ~165 m bbox — wide enough to find images on parallel streets
+  // bbox with ~550 m half-width — wide enough to find images in cities with sparse coverage.
   const { lng, lat } = lngLat;
-  const bbox = `${lng - d},${lat - d},${lng + d},${lat + d}`;
-  const url = `https://graph.mapillary.com/images?access_token=${token}&fields=id,geometry&bbox=${bbox}&limit=1`;
+  const d = 0.005;
+  const url = `https://graph.mapillary.com/images?access_token=${token}&fields=id,geometry&bbox=${lng-d},${lat-d},${lng+d},${lat+d}&limit=1`;
   const r = await fetch(url);
   if (!r.ok) throw new Error(`Mapillary API ${r.status}`);
   const body = await r.json();
