@@ -107,8 +107,9 @@ export default function MapillaryViewer({ lngLat }: Props) {
     );
   }
 
-  // @lat,lng,3a = Street View at exact coordinates; 75y = FOV; 0h = heading north; 90t = horizontal tilt
-  const gmapsUrl = `https://www.google.com/maps/@${lngLat.lat},${lngLat.lng},3a,75y,0h,90t/data=!3m6!1e1`;
+  // Place pin + zoom 18 — reliable way to land at exact coordinates.
+  // The 3a street-view format requires a panorama ID to work without snapping.
+  const gmapsUrl = `https://www.google.com/maps/place/${lngLat.lat},${lngLat.lng}/@${lngLat.lat},${lngLat.lng},18z`;
 
   return (
     <div className="space-y-1">
@@ -133,7 +134,7 @@ export default function MapillaryViewer({ lngLat }: Props) {
         rel="noreferrer"
         className="flex items-center justify-center gap-1 rounded-md border border-slate-200 py-1 text-xs text-slate-500 hover:bg-slate-50 hover:text-slate-700"
       >
-        Open in Google Street View ↗
+        Open location in Google Maps ↗
       </a>
     </div>
   );
