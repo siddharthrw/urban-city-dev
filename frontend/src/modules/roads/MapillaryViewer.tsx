@@ -10,15 +10,32 @@ type Props = {
 
 type Status = "loading" | "ok" | "no-coverage" | "error";
 
-async function nearestImageId(lngLat: { lng: number; lat: number }, token: string): Promise<string | null> {
-  // bbox with ~550 m half-width — wide enough to find images in cities with sparse coverage.
+function dist2(ax: number, ay: number, bx: number, by: number) {
+  return (ax - bx) ** 2 + (ay - by) ** 2;
+}
+
+async function queryImages(lngLat: { lng: number; lat: number }, token: string, panoOnly: boolean) {
   const { lng, lat } = lngLat;
   const d = 0.005;
-  const url = `https://graph.mapillary.com/images?access_token=${token}&fields=id,geometry&bbox=${lng-d},${lat-d},${lng+d},${lat+d}&limit=1`;
+  const pano = panoOnly ? "&is_pano=true" : "";
+  const url = `https://graph.mapillary.com/images?access_token=${token}&fields=id,geometry&bbox=${lng-d},${lat-d},${lng+d},${lat+d}${pano}&limit=10`;
   const r = await fetch(url);
   if (!r.ok) throw new Error(`Mapillary API ${r.status}`);
   const body = await r.json();
-  return (body.data?.[0]?.id as string) ?? null;
+  return (body.data ?? []) as { id: string; geometry: { coordinates: [number, number] } }[];
+}
+
+async function nearestImageId(lngLat: { lng: number; lat: number }, token: string): Promise<string | null> {
+  const { lng, lat } = lngLat;
+  // Prefer 360° panoramas (look-around + walk); fall back to any image so roads with
+  // only flat coverage still show something.
+  let images = await queryImages(lngLat, token, true);
+  if (!images.length) images = await queryImages(lngLat, token, false);
+  if (!images.length) return null;
+  images.sort((a, b) =>
+    dist2(lng, lat, ...a.geometry.coordinates) - dist2(lng, lat, ...b.geometry.coordinates)
+  );
+  return images[0].id;
 }
 
 export default function MapillaryViewer({ lngLat }: Props) {
@@ -46,7 +63,12 @@ export default function MapillaryViewer({ lngLat }: Props) {
           accessToken: TOKEN,
           container: containerRef.current,
           imageId,
-          component: { cover: false },
+          component: {
+            cover: false,
+            sequence: true,   // forward/back arrows to walk along the street
+            direction: true,  // turn arrows to take different routes at junctions
+            bearing: true,    // compass
+          },
         });
         viewerRef.current = viewer;
         setStatus("ok");
@@ -77,23 +99,17 @@ export default function MapillaryViewer({ lngLat }: Props) {
   }
 
   return (
-    <div className="relative overflow-hidden rounded-md">
-      {/* Viewer container — always in DOM so Mapillary has a stable node */}
-      <div ref={containerRef} className="h-56 w-full" style={{ display: status === "ok" ? "block" : "none" }} />
+    <div className="relative h-56 overflow-hidden rounded-md">
+      {/* Container is always visible so the WebGL context gets a real size on init. */}
+      <div ref={containerRef} className="h-full w-full" />
 
-      {status === "loading" && (
-        <div className="flex h-56 items-center justify-center bg-slate-100 text-xs text-slate-400">
-          Finding street view…
-        </div>
-      )}
-      {status === "no-coverage" && (
-        <div className="flex h-56 items-center justify-center bg-slate-100 text-xs text-slate-400">
-          No street imagery near this road
-        </div>
-      )}
-      {status === "error" && (
-        <div className="flex h-56 items-center justify-center bg-red-50 px-3 text-xs text-red-700">
-          {errorMsg}
+      {/* Overlay — covers the viewer while it is loading, fades away on success. */}
+      {status !== "ok" && (
+        <div className={`absolute inset-0 flex items-center justify-center text-xs
+          ${status === "error" ? "bg-red-50 px-3 text-red-700" : "bg-slate-100 text-slate-400"}`}>
+          {status === "loading" && "Finding street view…"}
+          {status === "no-coverage" && "No street imagery near this road"}
+          {status === "error" && errorMsg}
         </div>
       )}
     </div>
