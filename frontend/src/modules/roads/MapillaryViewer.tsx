@@ -107,7 +107,8 @@ export default function MapillaryViewer({ lngLat }: Props) {
     );
   }
 
-  const gmapsUrl = `https://www.google.com/maps?cbll=${lngLat.lat},${lngLat.lng}&layer=c`;
+  // @lat,lng,3a = Street View at exact coordinates; 75y = FOV; 0h = heading north; 90t = horizontal tilt
+  const gmapsUrl = `https://www.google.com/maps/@${lngLat.lat},${lngLat.lng},3a,75y,0h,90t/data=!3m6!1e1`;
 
   return (
     <div className="space-y-1">
