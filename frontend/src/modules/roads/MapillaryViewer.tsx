@@ -14,9 +14,13 @@ function dist2(ax: number, ay: number, bx: number, by: number) {
   return (ax - bx) ** 2 + (ay - by) ** 2;
 }
 
-async function queryImages(lngLat: { lng: number; lat: number }, token: string, panoOnly: boolean) {
+async function queryImages(
+  lngLat: { lng: number; lat: number },
+  token: string,
+  d: number,
+  panoOnly: boolean,
+) {
   const { lng, lat } = lngLat;
-  const d = 0.005;
   const pano = panoOnly ? "&is_pano=true" : "";
   const url = `https://graph.mapillary.com/images?access_token=${token}&fields=id,geometry&bbox=${lng-d},${lat-d},${lng+d},${lat+d}${pano}&limit=10`;
   const r = await fetch(url);
@@ -27,15 +31,20 @@ async function queryImages(lngLat: { lng: number; lat: number }, token: string, 
 
 async function nearestImageId(lngLat: { lng: number; lat: number }, token: string): Promise<string | null> {
   const { lng, lat } = lngLat;
-  // Prefer 360° panoramas (look-around + walk); fall back to any image so roads with
-  // only flat coverage still show something.
-  let images = await queryImages(lngLat, token, true);
-  if (!images.length) images = await queryImages(lngLat, token, false);
-  if (!images.length) return null;
-  images.sort((a, b) =>
-    dist2(lng, lat, ...a.geometry.coordinates) - dist2(lng, lat, ...b.geometry.coordinates)
-  );
-  return images[0].id;
+  // Graduated search: start tight so we find images actually on the clicked road,
+  // only expand when nothing is found nearby.
+  // Each radius tries 360° panoramas first (best UX), then flat photos.
+  for (const d of [0.001, 0.003, 0.005]) {
+    let images = await queryImages(lngLat, token, d, true);
+    if (!images.length) images = await queryImages(lngLat, token, d, false);
+    if (images.length) {
+      images.sort((a, b) =>
+        dist2(lng, lat, ...a.geometry.coordinates) - dist2(lng, lat, ...b.geometry.coordinates)
+      );
+      return images[0].id;
+    }
+  }
+  return null;
 }
 
 export default function MapillaryViewer({ lngLat }: Props) {
