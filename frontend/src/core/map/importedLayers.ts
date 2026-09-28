@@ -47,9 +47,14 @@ export function addImportedLayers(map: maplibregl.Map, layers: LayerInfo[]) {
       filter: ["==", ["geometry-type"], "Point"],
       paint: {
         "circle-color": color,
-        "circle-radius": ["interpolate", ["linear"], ["zoom"], 10, 3, 16, 8],
+        // Dots grow from 2 px (city overview) to 7 px (street level).
+        "circle-radius": ["interpolate", ["linear"], ["zoom"], 10, 2, 14, 5, 17, 7],
+        // Fade from near-invisible at city level to full opacity at neighbourhood level.
+        "circle-opacity": ["interpolate", ["linear"], ["zoom"], 10, 0.15, 13, 0.7, 15, 0.9],
         "circle-stroke-color": ["case", ["==", ["get", "is_sample"], true], "#f97316", "#ffffff"],
-        "circle-stroke-width": 2,
+        // Stroke only appears when zoomed in enough to matter.
+        "circle-stroke-width": ["interpolate", ["linear"], ["zoom"], 12, 0, 14, 1.5],
+        "circle-stroke-opacity": ["interpolate", ["linear"], ["zoom"], 12, 0, 14, 0.8],
       },
     });
   }

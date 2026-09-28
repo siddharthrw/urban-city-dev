@@ -64,6 +64,27 @@ _RESULT = {
 
 # ---------- build_prompt ----------
 
+def test_build_prompt_includes_road_context_inputs():
+    result_with_inputs = {
+        **_RESULT,
+        "inputs": [
+            {"name": "Bus stops", "value": "3", "source": "data",
+             "detail": "3 bus stop(s) linked to this road."},
+            {"name": "Right-of-way", "value": "18.0 m", "source": "estimated",
+             "detail": "Typical width for this type of road (not measured)."},
+        ],
+        "context": ["bus_route"],
+    }
+    p = build_prompt(result_with_inputs)
+    assert "Bus stops" in p
+    assert "3 bus stop(s)" in p
+    assert "bus route" in p  # context flag rendered as plain words
+
+    p_one = build_prompt_one(result_with_inputs, "balanced")
+    assert "Bus stops" in p_one
+    assert "3 bus stop(s)" in p_one
+
+
 def test_build_prompt_includes_road_name():
     assert "Usman Road" in build_prompt(_RESULT)
 

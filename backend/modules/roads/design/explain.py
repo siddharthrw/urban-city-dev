@@ -29,6 +29,22 @@ _SYSTEM = (
 )
 
 
+def _context_block(result: dict) -> list[str]:
+    """Lines describing demand inputs and active context flags — given to the LLM so it can
+    reference bus stops, traffic counts, etc. in its explanation."""
+    lines: list[str] = []
+    inputs = result.get("inputs", [])
+    if inputs:
+        lines.append("=== ROAD CONTEXT ===")
+        for inp in inputs:
+            detail = f" ({inp['source']}: {inp['detail']})" if inp.get("detail") else f" ({inp['source']})"
+            lines.append(f"- {inp['name']}: {inp['value']}{detail}")
+    ctx = result.get("context", [])
+    if ctx:
+        lines.append("Active context flags: " + ", ".join(ctx).replace("_", " "))
+    return lines
+
+
 def _option_text(opt: dict, rules: dict) -> str:
     els = ", ".join(f"{e['label']} {e['width_m']:.1f} m" for e in opt["elements"])
     m = opt["metrics"]
@@ -72,6 +88,11 @@ def build_prompt(result: dict) -> str:
         f"Right-of-way: {result['row_m']:g} m ({result['width_source']})",
         f"Type: {result['road_class'].replace('_', ' ')}, "
         f"{'one-way' if result['oneway'] else 'two-way'}",
+    ]
+    ctx_lines = _context_block(result)
+    if ctx_lines:
+        lines += [""] + ctx_lines
+    lines += [
         "",
         "=== DESIGN OPTIONS ===",
     ]
@@ -121,6 +142,11 @@ def build_prompt_one(result: dict, option_id: str) -> str:
         f"Right-of-way: {result['row_m']:g} m ({result['width_source']})",
         f"Type: {result['road_class'].replace('_', ' ')}, "
         f"{'one-way' if result['oneway'] else 'two-way'}",
+    ]
+    ctx_lines = _context_block(result)
+    if ctx_lines:
+        lines += [""] + ctx_lines
+    lines += [
         "",
         "=== DESIGN OPTION ===",
         "",
