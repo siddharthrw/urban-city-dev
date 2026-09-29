@@ -24,6 +24,7 @@ const OPTION: DesignOption = {
 
 const RESULT: DesignResult = {
   row_m: 9.6, row_cm: 960, road_class: "secondary", oneway: false, width_source: "estimated", context: [],
+  auto_context: [], nearby: [],
   inputs: [{ name: "Right-of-way", value: "9.6 m", source: "estimated", detail: "Typical width for this type of road (not measured)." },
     { name: "Lanes needed", value: "2 per direction", source: "default", detail: "No traffic count linked." }],
   options: [OPTION],

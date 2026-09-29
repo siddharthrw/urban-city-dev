@@ -70,7 +70,9 @@ def test_suggest_survives_llm_failure(monkeypatch):
 def test_every_layer_type_is_well_formed(layer_id):
     d = registry.layer_def(layer_id)
     assert d["topic"] in {t["topic"] for t in registry.topics()}
-    assert d["link_to"] == "roads" and d["color"].startswith("#")
+    assert d["color"].startswith("#")
+    if "link_to" in d:
+        assert d["link_to"] == "roads"
     fields = registry.import_fields(layer_id)
     assert {"latitude", "longitude", "road_name"} <= set(fields)
     for f, spec in fields.items():

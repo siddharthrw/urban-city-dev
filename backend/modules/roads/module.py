@@ -26,6 +26,15 @@ LAYER_ID = "roads"
 IMPORT_LINKERS = {"roads": linking.link_rows}
 IMPORT_HOOKS = {"width_surveys": hooks.apply_width_surveys}
 
+# Spatial radius (degrees) for nearby-context detection. ~300 m at Chennai's latitude.
+_NEARBY_DEG = 0.003
+
+# Maps layer_id -> (context_flag, emoji_label, limit)
+_NEARBY_LAYERS: list[tuple[str, str, str, int]] = [
+    ("schools",        "school_nearby", "school",  10),
+    ("metro_stations", "metro_nearby",  "metro",    5),
+]
+
 router = APIRouter(prefix="/api/roads", tags=["roads"])
 
 
@@ -34,6 +43,61 @@ def _require_layer(city_id: str) -> dict:
     if layer is None:
         raise HTTPException(404, f"Roads have not been built for '{city_id}'. Run scripts\\build_roads.ps1.")
     return layer
+
+
+def _nearby_context(city_id: str, seg: dict) -> tuple[set[str], list[dict]]:
+    """Detect context flags from spatial data within ~300 m of the segment.
+
+    Returns (flags, detected) where detected items carry display info for the UI and LLM.
+    Never raises: a missing layer is silently skipped.
+    """
+    bbox = seg.get("bbox")  # [minx, miny, maxx, maxy] in EPSG:4326
+    if not bbox:
+        return set(), []
+
+    r = _NEARBY_DEG
+    expanded = (bbox[0] - r, bbox[1] - r, bbox[2] + r, bbox[3] + r)
+
+    flags: set[str] = set()
+    detected: list[dict] = []
+
+    for layer_id, flag, label, limit in _NEARBY_LAYERS:
+        if catalog.get_layer(city_id, layer_id) is None:
+            continue
+        # name_col: first string field in each layer's summary_fields
+        from core.layers import registry as _reg
+        defn = next((d for d in _reg.layer_defs() if d.get("layer_id") == layer_id), {})
+        name_col = (defn.get("summary_fields") or [None])[0]
+
+        result = layers.features_geojson(city_id, layer_id, expanded, limit=limit,
+                                         exclude=(name_col,) if name_col is None else ())
+        if not result["features"]:
+            continue
+
+        flags.add(flag)
+        names: list[str] = []
+        if name_col:
+            names = [
+                f["properties"].get(name_col, "") for f in result["features"]
+                if f["properties"].get(name_col)
+            ][:3]
+
+        count = len(result["features"])
+        truncated = result.get("truncated", False)
+        count_str = f"{count}+" if truncated else str(count)
+        detail = f"{count_str} {label}{'s' if count != 1 else ''} within ~300 m"
+        if names:
+            detail += f" (e.g. {', '.join(names)})"
+
+        detected.append({
+            "type": layer_id,
+            "flag": flag,
+            "count": count,
+            "names": names,
+            "detail": detail,
+        })
+
+    return flags, detected
 
 
 def _linked_data(city_id: str, seg_id: str) -> list[dict]:
@@ -129,7 +193,11 @@ def design_segment(city_id: str, seg_id: str, body: DesignBody = DesignBody()):
     seg = layers.get_feature(city_id, LAYER_ID, "seg_id", seg_id)
     if seg is None:
         raise HTTPException(404, f"No road segment '{seg_id}'")
-    unknown = sorted(set(body.context) - set(engine.CONTEXT_FLAGS))
+
+    auto_flags, detected = _nearby_context(city_id, seg)
+    merged_context = set(body.context) | auto_flags
+
+    unknown = sorted(merged_context - set(engine.CONTEXT_FLAGS))
     if unknown:
         raise HTTPException(422, f"Unknown context: {', '.join(unknown)}. Allowed: {', '.join(engine.CONTEXT_FLAGS)}")
     row_m, source = seg["width_m"], seg["width_source"]
@@ -144,10 +212,12 @@ def design_segment(city_id: str, seg_id: str, body: DesignBody = DesignBody()):
         raise HTTPException(500, f"A rule file has a problem: {e}") from e
     cfg = engine.load_config()
     result = engine.design(row_m=row_m, road_class=seg["road_class"], oneway=bool(seg["oneway"]),
-                           context=set(body.context), demand=_demand_for(city_id, seg_id, cfg),
+                           context=merged_context, demand=_demand_for(city_id, seg_id, cfg),
                            rules=rules, width_source=source, cfg=cfg)
     result["segment"] = {"seg_id": seg_id, "name": seg.get("display_name"), "road_width_m": seg["width_m"],
                          "road_width_source": seg["width_source"]}
+    result["nearby"] = detected
+    result["auto_context"] = sorted(auto_flags)
     return result
 
 
@@ -163,7 +233,11 @@ def _design_for(city_id: str, seg_id: str, context: list[str], row_m_override: f
     seg = layers.get_feature(city_id, LAYER_ID, "seg_id", seg_id)
     if seg is None:
         raise HTTPException(404, f"No road segment '{seg_id}'")
-    unknown = sorted(set(context) - set(engine.CONTEXT_FLAGS))
+
+    auto_flags, detected = _nearby_context(city_id, seg)
+    merged_context = set(context) | auto_flags
+
+    unknown = sorted(merged_context - set(engine.CONTEXT_FLAGS))
     if unknown:
         raise HTTPException(422, f"Unknown context: {', '.join(unknown)}. Allowed: {', '.join(engine.CONTEXT_FLAGS)}")
     row_m, source = seg["width_m"], seg["width_source"]
@@ -178,10 +252,12 @@ def _design_for(city_id: str, seg_id: str, context: list[str], row_m_override: f
         raise HTTPException(500, f"A rule file has a problem: {e}") from e
     cfg = engine.load_config()
     result = engine.design(row_m=row_m, road_class=seg["road_class"], oneway=bool(seg["oneway"]),
-                           context=set(context), demand=_demand_for(city_id, seg_id, cfg),
+                           context=merged_context, demand=_demand_for(city_id, seg_id, cfg),
                            rules=rules, width_source=source, cfg=cfg)
     result["segment"] = {"seg_id": seg_id, "name": seg.get("display_name"), "road_width_m": seg["width_m"],
                          "road_width_source": seg["width_source"]}
+    result["nearby"] = detected
+    result["auto_context"] = sorted(auto_flags)
     return seg, result
 
 

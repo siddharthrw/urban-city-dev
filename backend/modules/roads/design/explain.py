@@ -30,8 +30,7 @@ _SYSTEM = (
 
 
 def _context_block(result: dict) -> list[str]:
-    """Lines describing demand inputs and active context flags — given to the LLM so it can
-    reference bus stops, traffic counts, etc. in its explanation."""
+    """Lines describing demand inputs, nearby features, and active context flags."""
     lines: list[str] = []
     inputs = result.get("inputs", [])
     if inputs:
@@ -42,6 +41,11 @@ def _context_block(result: dict) -> list[str]:
     ctx = result.get("context", [])
     if ctx:
         lines.append("Active context flags: " + ", ".join(ctx).replace("_", " "))
+    nearby = result.get("nearby", [])
+    if nearby:
+        lines.append("=== NEARBY FEATURES (auto-detected from spatial data) ===")
+        for n in nearby:
+            lines.append(f"- {n['detail']}")
     return lines
 
 

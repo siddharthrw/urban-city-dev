@@ -36,6 +36,14 @@ export type DesignOption = {
 
 export type DesignInput = { name: string; value: string; source: string; detail: string };
 
+export type NearbyFeature = {
+  type: string;
+  flag: string;
+  count: number;
+  names: string[];
+  detail: string;
+};
+
 export type DesignResult = {
   row_m: number;
   row_cm: number;
@@ -43,6 +51,8 @@ export type DesignResult = {
   oneway: boolean;
   width_source: "estimated" | "measured" | "verified" | "manual";
   context: string[];
+  auto_context: string[];
+  nearby: NearbyFeature[];
   inputs: DesignInput[];
   options: DesignOption[];
   dropped: { option_id: string; name: string; reason: string }[];

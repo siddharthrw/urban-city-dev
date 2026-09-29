@@ -66,9 +66,12 @@ def test_lane_counts_and_directions_are_valid(row_cm, road_class, oneway, contex
     for o in run(row_cm, road_class, oneway, context, demand)["options"]:
         lanes = o["metrics"]["lanes"]
         assert lanes >= 1
-        if not oneway:
+        shared = o["option_id"] == "narrow"  # narrow uses one shared carriageway for both directions
+        if not oneway and not shared:
             assert lanes % 2 == 0 and lanes >= 2  # a two-way road never has an odd or single lane
             assert o["metrics"]["has_median"] == any(e["kind"] == "median" for e in o["elements"])
+        elif not oneway and shared:
+            assert lanes == 1  # narrow: single shared lane regardless of direction
         else:
             assert not o["metrics"]["has_median"]
 
@@ -77,7 +80,8 @@ def test_lane_counts_and_directions_are_valid(row_cm, road_class, oneway, contex
 @given(**inputs)
 def test_an_empty_result_always_explains_itself(row_cm, road_class, oneway, context, demand):
     res = run(row_cm, road_class, oneway, context, demand)
-    assert len(res["options"]) + len(res["dropped"]) == 3
+    # 3 standard options always considered; narrow is a 4th attempted only for two-way roads <= 9.5 m
+    assert len(res["options"]) + len(res["dropped"]) in (3, 4)
     assert all(d["reason"] for d in res["dropped"])
     if not res["options"]:
         assert res["warnings"] and any("No layout" in w for w in res["warnings"])

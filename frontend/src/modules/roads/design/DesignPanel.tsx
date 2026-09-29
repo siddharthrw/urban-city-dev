@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import SourceBadge from "../../../core/rules/SourceBadge";
 import { CONFIDENCE } from "../../../core/provenance";
 import CrossSection from "./CrossSection";
-import { CONTEXT_FLAGS, designApi, type DesignOption, type DesignResult } from "./api";
+import { CONTEXT_FLAGS, designApi, type DesignOption, type DesignResult, type NearbyFeature } from "./api";
 
 const CONFIDENCE_KEY = (s: string): keyof typeof CONFIDENCE =>
   s in CONFIDENCE ? (s as keyof typeof CONFIDENCE) : "estimated";
@@ -175,6 +175,10 @@ export default function DesignPanel({ cityId, segId, roadWidthM, roadWidthSource
 
         {result && (
           <>
+            {result.nearby && result.nearby.length > 0 && (
+              <NearbyContextBox nearby={result.nearby} autoContext={result.auto_context ?? []} />
+            )}
+
             {result.warnings.length > 0 && (
               <ul className="space-y-1 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900" aria-label="Warnings">
                 {result.warnings.map((w) => <li key={w}>⚠ {w}</li>)}
@@ -249,6 +253,13 @@ function OptionCard({ option: o, result, cityId, segId, context, width }: {
     }
   };
 
+  // Auto-explain when the design panel opens for the first time on this segment
+  useEffect(() => {
+    handleExplain();
+    // Only auto-run once per segment+option combination (segId changing resets the panel)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [segId, o.option_id]);
+
   return (
     <section className="rounded-lg border border-slate-200 p-3" aria-label={o.name}>
       <h3 className="text-sm font-semibold">{o.name}</h3>
@@ -319,6 +330,35 @@ function Metric({ label, value }: { label: string; value: string }) {
     <div className="flex gap-1">
       <dt className="text-slate-500">{label}:</dt>
       <dd className="font-medium">{value}</dd>
+    </div>
+  );
+}
+
+const NEARBY_ICON: Record<string, string> = {
+  schools: "🏫",
+  metro_stations: "🚇",
+  bus_stops: "🚌",
+  parks: "🌳",
+};
+
+function NearbyContextBox({ nearby, autoContext }: { nearby: NearbyFeature[]; autoContext: string[] }) {
+  return (
+    <div className="rounded-md border border-indigo-200 bg-indigo-50 p-3 text-xs" aria-label="Detected nearby">
+      <div className="mb-1.5 font-semibold text-indigo-800">Detected nearby — shaping this design</div>
+      <ul className="space-y-1 text-indigo-700">
+        {nearby.map((n) => (
+          <li key={n.type} className="flex items-start gap-1.5">
+            <span>{NEARBY_ICON[n.type] ?? "📍"}</span>
+            <span>{n.detail}</span>
+          </li>
+        ))}
+      </ul>
+      {autoContext.length > 0 && (
+        <p className="mt-1.5 text-indigo-500">
+          Auto-applied: {autoContext.map((f) => f.replace(/_/g, " ")).join(", ")} — wider footpaths and
+          protective elements included automatically.
+        </p>
+      )}
     </div>
   );
 }
