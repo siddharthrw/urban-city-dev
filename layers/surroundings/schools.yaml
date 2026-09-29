@@ -5,18 +5,30 @@ kind: imported
 link_to: roads
 color: "#0891b2"
 description: Schools and colleges near roads (triggers safe crossings, lower speeds).
-summary_fields: [school_name, students]
+summary_fields: [school_name, management, category, students]
 fields:
   school_name:
     type: string
     label: School name
     aliases: [school, school name, name, institution]
+  management:
+    type: string
+    label: Management
+    aliases: [management, type, school type]
+  category:
+    type: string
+    label: Category
+    aliases: [category, level, class]
   students:
     type: int
     label: Students
     min: 0
     aliases: [students, strength, enrolment, enrollment, children]
+  address:
+    type: string
+    label: Address
+    aliases: [address, addr, location]
   notes:
     type: string
     label: Notes
-    aliases: [notes, remarks, type]
+    aliases: [notes, remarks]
