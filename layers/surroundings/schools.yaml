@@ -2,7 +2,6 @@ layer_id: schools
 topic: surroundings
 label: Schools
 kind: imported
-link_to: roads
 color: "#0891b2"
 description: Schools and colleges near roads (triggers safe crossings, lower speeds).
 summary_fields: [school_name, management, category, students]
