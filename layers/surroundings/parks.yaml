@@ -1,0 +1,23 @@
+layer_id: parks
+topic: surroundings
+label: Parks
+kind: imported
+color: "#16a34a"
+description: "GCC parks (neighbourhood < 4000 sqm, community 4000-8000 sqm, city > 8000 sqm). Source: Greater Chennai Corporation via OpenCity, Nov 2025."
+summary_fields: [park_name, park_type, area_sqm, maintained_by]
+fields:
+  park_name:
+    type: string
+    label: Park name
+  park_type:
+    type: string
+    label: Park type
+  area_sqm:
+    type: float
+    label: Area (sq m)
+  maintained_by:
+    type: string
+    label: Maintained by
+  address:
+    type: string
+    label: Address
