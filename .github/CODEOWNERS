@@ -1,0 +1,11 @@
+# Siddharth owns all source code and config.
+# Any PR touching these paths requires his review before it can merge.
+
+/frontend/          @siddharthrw
+/backend/           @siddharthrw
+/pyproject.toml     @siddharthrw
+/.github/           @siddharthrw
+/.env.example       @siddharthrw
+/CLAUDE.md          @siddharthrw
+
+# data/, docs/, rules/, and *.md files (except CLAUDE.md) are open to contributors.

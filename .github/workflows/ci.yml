@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    name: Backend tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r backend/requirements.txt
+
+      - name: Run tests
+        run: python -m pytest
+        env:
+          # Tests run without real data — point DATA_DIR at a temp folder.
+          DATA_DIR: /tmp/citydata
+          LLM_PROVIDER: ollama
+          OLLAMA_HOST: http://localhost:11434
+          OLLAMA_MODEL: qwen2.5:7b
