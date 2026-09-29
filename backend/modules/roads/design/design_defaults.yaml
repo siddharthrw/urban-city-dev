@@ -114,3 +114,22 @@ options:
     surplus_weights: { footpath: 1 }
     soft_max_m: { footpath: 4.0 }
     sinks: [footpath]
+  two_wheeler_priority:
+    # Only offered when traffic data shows two-wheelers are ≥ 50% of vehicles.
+    # Uses cycle_track slots (labelled "2W lane") to separate two-wheelers from cars.
+    # Auto bay appears where there is room and a bus route is nearby.
+    # Minimum: footpath (1.8) + 2W lane (1.5) + lane (3.0) + 2W lane (1.5) + footpath (1.8) = 9.6 m
+    name: "Two-wheeler priority"
+    summary: "Dedicated two-wheeler lanes on both sides keep bikes and scooters out of the main carriageway. One car lane per direction handles the vehicle mix — no empty car lanes."
+    required_context: [two_wheeler_dominant]
+    max_dir_lanes: 1
+    targets_m: { footpath: 2.0, cycle_track: 2.0, lane: 3.0, bus_bay: 3.0 }
+    required: [footpath, cycle_track, lane]
+    optional: [bus_bay]
+    optional_drop_order: [bus_bay]
+    lanes_first: true
+    median_from_row_m: null
+    surplus_weights: { footpath: 2, cycle_track: 2 }
+    soft_max_m: { footpath: 3.5, cycle_track: 3.0 }
+    sinks: [footpath, cycle_track]
+    element_labels: { cycle_track: "2W lane", bus_bay: "Auto bay" }

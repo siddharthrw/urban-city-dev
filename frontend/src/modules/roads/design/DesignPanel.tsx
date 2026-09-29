@@ -179,6 +179,10 @@ export default function DesignPanel({ cityId, segId, roadWidthM, roadWidthSource
               <NearbyContextBox nearby={result.nearby} autoContext={result.auto_context ?? []} />
             )}
 
+            {result.two_wheeler_pct != null && result.two_wheeler_pct >= 0.5 && (
+              <TwoWheelerInsight pct={result.two_wheeler_pct} detail={result.two_wheeler_detail} />
+            )}
+
             {result.warnings.length > 0 && (
               <ul className="space-y-1 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900" aria-label="Warnings">
                 {result.warnings.map((w) => <li key={w}>⚠ {w}</li>)}
@@ -340,6 +344,20 @@ const NEARBY_ICON: Record<string, string> = {
   bus_stops: "🚌",
   parks: "🌳",
 };
+
+function TwoWheelerInsight({ pct, detail }: { pct: number; detail: string }) {
+  const pctStr = `${Math.round(pct * 100)}%`;
+  return (
+    <div className="rounded-md border border-orange-200 bg-orange-50 p-3 text-xs" aria-label="Two-wheeler insight">
+      <div className="mb-1 font-semibold text-orange-800">🛵 {pctStr} of traffic is two-wheelers</div>
+      <p className="text-orange-700">{detail}</p>
+      <p className="mt-1.5 text-orange-600">
+        The <strong>Two-wheeler priority</strong> option below shows a cross-section with dedicated 2W lanes
+        on each side — instead of wider car lanes sitting half-empty.
+      </p>
+    </div>
+  );
+}
 
 function NearbyContextBox({ nearby, autoContext }: { nearby: NearbyFeature[]; autoContext: string[] }) {
   return (

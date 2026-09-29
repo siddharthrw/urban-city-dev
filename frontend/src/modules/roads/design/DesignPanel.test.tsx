@@ -24,7 +24,7 @@ const OPTION: DesignOption = {
 
 const RESULT: DesignResult = {
   row_m: 9.6, row_cm: 960, road_class: "secondary", oneway: false, width_source: "estimated", context: [],
-  auto_context: [], nearby: [],
+  auto_context: [], nearby: [], two_wheeler_pct: null, two_wheeler_detail: "",
   inputs: [{ name: "Right-of-way", value: "9.6 m", source: "estimated", detail: "Typical width for this type of road (not measured)." },
     { name: "Lanes needed", value: "2 per direction", source: "default", detail: "No traffic count linked." }],
   options: [OPTION],
@@ -159,32 +159,30 @@ describe("DesignPanel", () => {
   });
 
   it("calls explainOption and shows the explanation below the diagram", async () => {
-    const user = userEvent.setup();
     vi.mocked(designApi.explainOption).mockResolvedValue({
       explanation: "This layout maximises vehicle throughput on the road.",
       warnings: [],
     });
     render(<DesignPanel {...props} />);
     await screen.findByText("Traffic priority");
-    await user.click(screen.getByRole("button", { name: "Explain Traffic priority" }));
+    // Auto-explain fires on mount; wait for the explanation to appear
     await waitFor(() =>
       expect(screen.getByText("This layout maximises vehicle throughput on the road.")).toBeInTheDocument()
     );
     expect(designApi.explainOption).toHaveBeenCalledWith("chennai", "1-2-0", "traffic", { context: [], row_m: 9.6 });
-    // Regenerate button replaces the Explain button
+    // Regenerate button replaces the Explain button after auto-explain
     expect(screen.getByRole("button", { name: /Regenerate/ })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Explain Traffic priority" })).not.toBeInTheDocument();
   });
 
   it("shows per-option explanation warnings from the LLM", async () => {
-    const user = userEvent.setup();
     vi.mocked(designApi.explainOption).mockResolvedValue({
       explanation: "Some text.",
       warnings: ["Explanation cited unknown rule IDs: irc_103."],
     });
     render(<DesignPanel {...props} />);
     await screen.findByText("Traffic priority");
-    await user.click(screen.getByRole("button", { name: "Explain Traffic priority" }));
+    // Auto-explain fires on mount; wait for the warning to appear
     await waitFor(() => expect(screen.getByText(/irc_103/)).toBeInTheDocument());
   });
 

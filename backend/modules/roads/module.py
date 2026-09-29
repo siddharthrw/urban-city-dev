@@ -195,8 +195,17 @@ def design_segment(city_id: str, seg_id: str, body: DesignBody = DesignBody()):
         raise HTTPException(404, f"No road segment '{seg_id}'")
 
     auto_flags, detected = _nearby_context(city_id, seg)
-    merged_context = set(body.context) | auto_flags
 
+    try:
+        rules = rules_loader.load_all()
+    except RuleError as e:
+        raise HTTPException(500, f"A rule file has a problem: {e}") from e
+    cfg = engine.load_config()
+    demand = _demand_for(city_id, seg_id, cfg)
+    if demand.two_wheeler_pct is not None and demand.two_wheeler_pct >= 0.50:
+        auto_flags = auto_flags | {"two_wheeler_dominant"}
+
+    merged_context = set(body.context) | auto_flags
     unknown = sorted(merged_context - set(engine.CONTEXT_FLAGS))
     if unknown:
         raise HTTPException(422, f"Unknown context: {', '.join(unknown)}. Allowed: {', '.join(engine.CONTEXT_FLAGS)}")
@@ -206,18 +215,15 @@ def design_segment(city_id: str, seg_id: str, body: DesignBody = DesignBody()):
             raise HTTPException(422, f"Width must be between {ROW_MIN_M:g} and {ROW_MAX_M:g} m")
         if abs(body.row_m - row_m) > 0.005:
             row_m, source = body.row_m, "manual"
-    try:
-        rules = rules_loader.load_all()
-    except RuleError as e:
-        raise HTTPException(500, f"A rule file has a problem: {e}") from e
-    cfg = engine.load_config()
     result = engine.design(row_m=row_m, road_class=seg["road_class"], oneway=bool(seg["oneway"]),
-                           context=merged_context, demand=_demand_for(city_id, seg_id, cfg),
+                           context=merged_context, demand=demand,
                            rules=rules, width_source=source, cfg=cfg)
     result["segment"] = {"seg_id": seg_id, "name": seg.get("display_name"), "road_width_m": seg["width_m"],
                          "road_width_source": seg["width_source"]}
     result["nearby"] = detected
     result["auto_context"] = sorted(auto_flags)
+    result["two_wheeler_pct"] = demand.two_wheeler_pct
+    result["two_wheeler_detail"] = demand.two_wheeler_detail
     return result
 
 
@@ -235,8 +241,17 @@ def _design_for(city_id: str, seg_id: str, context: list[str], row_m_override: f
         raise HTTPException(404, f"No road segment '{seg_id}'")
 
     auto_flags, detected = _nearby_context(city_id, seg)
-    merged_context = set(context) | auto_flags
 
+    try:
+        rules = rules_loader.load_all()
+    except RuleError as e:
+        raise HTTPException(500, f"A rule file has a problem: {e}") from e
+    cfg = engine.load_config()
+    demand = _demand_for(city_id, seg_id, cfg)
+    if demand.two_wheeler_pct is not None and demand.two_wheeler_pct >= 0.50:
+        auto_flags = auto_flags | {"two_wheeler_dominant"}
+
+    merged_context = set(context) | auto_flags
     unknown = sorted(merged_context - set(engine.CONTEXT_FLAGS))
     if unknown:
         raise HTTPException(422, f"Unknown context: {', '.join(unknown)}. Allowed: {', '.join(engine.CONTEXT_FLAGS)}")
@@ -246,18 +261,15 @@ def _design_for(city_id: str, seg_id: str, context: list[str], row_m_override: f
             raise HTTPException(422, f"Width must be between {ROW_MIN_M:g} and {ROW_MAX_M:g} m")
         if abs(row_m_override - row_m) > 0.005:
             row_m, source = row_m_override, "manual"
-    try:
-        rules = rules_loader.load_all()
-    except RuleError as e:
-        raise HTTPException(500, f"A rule file has a problem: {e}") from e
-    cfg = engine.load_config()
     result = engine.design(row_m=row_m, road_class=seg["road_class"], oneway=bool(seg["oneway"]),
-                           context=merged_context, demand=_demand_for(city_id, seg_id, cfg),
+                           context=merged_context, demand=demand,
                            rules=rules, width_source=source, cfg=cfg)
     result["segment"] = {"seg_id": seg_id, "name": seg.get("display_name"), "road_width_m": seg["width_m"],
                          "road_width_source": seg["width_source"]}
     result["nearby"] = detected
     result["auto_context"] = sorted(auto_flags)
+    result["two_wheeler_pct"] = demand.two_wheeler_pct
+    result["two_wheeler_detail"] = demand.two_wheeler_detail
     return seg, result
 
 

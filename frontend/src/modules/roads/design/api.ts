@@ -53,6 +53,8 @@ export type DesignResult = {
   context: string[];
   auto_context: string[];
   nearby: NearbyFeature[];
+  two_wheeler_pct: number | null;
+  two_wheeler_detail: string;
   inputs: DesignInput[];
   options: DesignOption[];
   dropped: { option_id: string; name: string; reason: string }[];

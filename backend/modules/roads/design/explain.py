@@ -46,6 +46,12 @@ def _context_block(result: dict) -> list[str]:
         lines.append("=== NEARBY FEATURES (auto-detected from spatial data) ===")
         for n in nearby:
             lines.append(f"- {n['detail']}")
+    tw_pct = result.get("two_wheeler_pct")
+    if tw_pct is not None:
+        lines.append(f"=== VEHICLE MIX ===")
+        lines.append(f"- {result['two_wheeler_detail']}")
+        if tw_pct >= 0.50:
+            lines.append("  Two-wheelers dominate: the Two-wheeler priority option was generated specifically for this mix.")
     return lines
 
 

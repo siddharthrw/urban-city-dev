@@ -80,8 +80,9 @@ def test_lane_counts_and_directions_are_valid(row_cm, road_class, oneway, contex
 @given(**inputs)
 def test_an_empty_result_always_explains_itself(row_cm, road_class, oneway, context, demand):
     res = run(row_cm, road_class, oneway, context, demand)
-    # 3 standard options always considered; narrow is a 4th attempted only for two-way roads <= 9.5 m
-    assert len(res["options"]) + len(res["dropped"]) in (3, 4)
+    # 3 standard options always; narrow adds a 4th (two-way, ≤9.5 m);
+    # two_wheeler_priority adds another when two_wheeler_dominant is in context
+    assert 3 <= len(res["options"]) + len(res["dropped"]) <= 5
     assert all(d["reason"] for d in res["dropped"])
     if not res["options"]:
         assert res["warnings"] and any("No layout" in w for w in res["warnings"])

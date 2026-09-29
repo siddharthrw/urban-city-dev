@@ -15,6 +15,8 @@ class Demand:
     ped_detail: str = ""
     bus_stops: int | None = None
     bus_detail: str = ""
+    two_wheeler_pct: float | None = None  # two-wheelers as a fraction of total vehicles (0–1)
+    two_wheeler_detail: str = ""
 
 
 def _tag(row: dict) -> str:
@@ -70,4 +72,18 @@ def build_demand(traffic_rows: list[dict], footfall_rows: list[dict], bus_rows: 
     if bus_rows:
         tagged = " (SAMPLE: made-up test data)" if any(r.get("is_sample") for r in bus_rows) else ""
         bus_detail = f"{len(bus_rows)} bus stop(s) linked to this road{tagged}."
-    return Demand(peak, pcu_detail, ped, ped_detail, stops, bus_detail)
+
+    two_wheeler_pct = None
+    two_wheeler_detail = ""
+    if peak_row is not None:
+        tw = _num(peak_row.get("two_wheelers"))
+        tot = _num(peak_row.get("total_vehicles"))
+        if tw is not None and tot is not None and tot > 0:
+            two_wheeler_pct = tw / tot
+            two_wheeler_detail = (
+                f"{tw:,.0f} of {tot:,.0f} vehicles were two-wheelers "
+                f"({two_wheeler_pct:.0%}) in the peak count{_tag(peak_row)}."
+            )
+
+    return Demand(peak, pcu_detail, ped, ped_detail, stops, bus_detail,
+                  two_wheeler_pct, two_wheeler_detail)

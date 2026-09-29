@@ -23,7 +23,7 @@ KIND_LABEL = {"footpath": "Footpath", "tree_strip": "Trees", "cycle_track": "Cyc
               "bus_bay": "Bus bay", "lane": "Lane", "median": "Median"}
 OUTER_TO_INNER = ["footpath", "tree_strip", "cycle_track", "bus_bay"]  # order from the property line inwards
 PHASE4_ORDER = ["median", "tree_strip", "footpath", "cycle_track", "bus_bay", "lane"]
-CONTEXT_FLAGS = ("school_nearby", "bus_route", "metro_nearby", "waterlogging", "market")
+CONTEXT_FLAGS = ("school_nearby", "bus_route", "metro_nearby", "waterlogging", "market", "two_wheeler_dominant")
 
 
 def load_config(path: Path = DEFAULTS_PATH) -> dict:
@@ -148,7 +148,7 @@ def design(*, row_m: float, road_class: str, oneway: bool, context: set[str] | f
 
     bus = "bus_route" in context or bool(demand.bus_stops)
     options, dropped, used_rules = [], [], set()
-    for key in ("balanced", "traffic", "walking", "narrow"):
+    for key in ("balanced", "traffic", "walking", "narrow", "two_wheeler_priority"):
         opt = cfg["options"].get(key)
         if opt is None:
             continue
@@ -158,6 +158,9 @@ def design(*, row_m: float, road_class: str, oneway: bool, context: set[str] | f
         if opt.get("min_row_m") is not None and row_cm < cm(opt["min_row_m"]):
             continue
         if opt.get("two_way_only") and oneway:
+            continue
+        # required_context: option only attempted when all listed flags are active
+        if opt.get("required_context") and not set(opt["required_context"]) <= context:
             continue
         result = _build(key, opt, row_cm=row_cm, road_class=road_class, oneway=oneway, context=context,
                         demand=demand, ruleset=ruleset, cfg=cfg, dir_lanes=dir_lanes, dir_cap=cls["dir_cap"],
@@ -301,7 +304,8 @@ def _build(key, opt, *, row_cm, road_class, oneway, context, demand, ruleset, cf
     except _Unplaceable as e:
         return drop(f"Cannot be drawn at {row_cm / 100:g} m: {e}.")
 
-    elements = [{"kind": k, "label": KIND_LABEL[k], "side": side, "width_cm": w, "width_m": w / 100,
+    labels = {**KIND_LABEL, **opt.get("element_labels", {})}
+    elements = [{"kind": k, "label": labels[k], "side": side, "width_cm": w, "width_m": w / 100,
                  "rule_ids": list(cons[k].rule_ids), "fallback_minimum": cons[k].fallback}
                 for (k, side), w in zip(slots, widths)]
     rule_ids = sorted({rid for e in elements for rid in e["rule_ids"]})
