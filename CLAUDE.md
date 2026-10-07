@@ -47,4 +47,8 @@ If any test fails, fix the cause — do not open the PR with failing tests.
 
 No restrictions. Follow the normal engineering workflow.
 
+**Tests move with features.** Every new feature or fix adds or updates tests in the same change. Tests that describe a behaviour get updated when that behaviour is deliberately changed, and the reason goes in the commit message. Do not weaken or delete a failing test to make CI pass; fix the code or change the rule and say so.
+
+**Reviewing collaborator PRs.** When a collaborator's PR touches `backend/` or `frontend/`, check that: (1) `python -m pytest` and `npm test` both pass on the PR branch, (2) new behaviour has matching tests, and (3) no existing test was loosened. Only merge after that review.
+
 Security note: never commit `.env` or any file containing API keys or tokens.
