@@ -85,6 +85,21 @@ def test_build_pdf_is_substantial():
     assert len(b) > 1_500  # fpdf2 compresses content; a real multi-element PDF is above this
 
 
+def test_build_pdf_with_current_road_section():
+    from modules.roads.design import engine
+    result = {**_RESULT, "current": engine.current_state(_RESULT["row_cm"])}
+    b = build_pdf(result)
+    assert b[:4] == b"%PDF"
+    assert len(b) > len(build_pdf(_RESULT))  # the current-road section adds real content
+
+
+def test_build_pdf_without_current_road_is_unaffected():
+    # Older callers (or a result built before this field existed) must still render.
+    assert "current" not in _RESULT
+    b = build_pdf(_RESULT)
+    assert b[:4] == b"%PDF"
+
+
 def test_build_pdf_with_explanations():
     exps = {
         "explanations": {

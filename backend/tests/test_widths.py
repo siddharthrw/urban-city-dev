@@ -44,3 +44,21 @@ def test_verified_beats_measured_beats_estimated():
     assert widths.resolve(est) is est
     assert widths.resolve(est, measured=mea) is mea
     assert widths.resolve(est, measured=mea, verified=ver) is ver
+
+
+def test_implausible_flags_a_width_over_its_class_max():
+    plaus = widths.load_plausibility()
+    assert widths.implausible(76.0, "primary", plaus) is not None
+    assert "primary" in widths.implausible(76.0, "primary", plaus)
+
+
+def test_implausible_is_none_within_the_class_max():
+    plaus = widths.load_plausibility()
+    assert widths.implausible(20.0, "primary", plaus) is None
+
+
+def test_implausible_has_no_ceiling_for_motorway_and_trunk():
+    # Open-ended categories (CMDA's own expressway category is '45 m and above') — never flagged.
+    plaus = widths.load_plausibility()
+    assert widths.implausible(200.0, "motorway", plaus) is None
+    assert widths.implausible(200.0, "trunk", plaus) is None

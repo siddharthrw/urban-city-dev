@@ -1,0 +1,20 @@
+layer_id: metro_stations
+topic: surroundings
+label: Metro stations
+kind: imported
+color: "#7c3aed"
+description: "Chennai Metro Rail stations on the Blue and Green lines. Triggers the station-crowd footpath allowance on nearby roads. Station list from the project owner; coordinates from OpenStreetMap."
+summary_fields: [station_name, line]
+fields:
+  station_name:
+    type: string
+    label: Station name
+    aliases: [station, station name, name, metro station]
+  line:
+    type: string
+    label: Line
+    aliases: [line, metro line, route]
+  coordinate_source:
+    type: string
+    label: Where the location came from
+    aliases: [source, location source]

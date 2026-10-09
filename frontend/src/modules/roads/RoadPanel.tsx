@@ -1,6 +1,19 @@
 import { formatLength, formatValue, nameMatchLabel } from "../../core/format";
-import { CONFIDENCE } from "../../core/provenance";
+import { CONFIDENCE, MEASURED_CONFIDENCE } from "../../core/provenance";
 import type { SegmentResponse } from "./api";
+
+/** Google Street View at exactly where the road was clicked — not the segment's midpoint, which
+ * can be far away on a long segment. cbll = camera ball location: opens directly in Street View
+ * mode, and Google snaps to the nearest covered road on its own. Falls back to the segment's
+ * midpoint only when there's no click point (e.g. the panel was reopened without a fresh click). */
+function streetViewUrl(
+  clickLngLat: { lng: number; lat: number } | null | undefined,
+  [minLng, minLat, maxLng, maxLat]: [number, number, number, number],
+): string {
+  const lng = clickLngLat?.lng ?? (minLng + maxLng) / 2;
+  const lat = clickLngLat?.lat ?? (minLat + maxLat) / 2;
+  return `https://www.google.com/maps?layer=c&cbll=${lat},${lng}&cbp=12,0,,0,0&z=18`;
+}
 
 const CLASS_LABEL: Record<string, string> = {
   motorway: "Motorway", trunk: "Trunk road", primary: "Primary (main road)", secondary: "Secondary",
@@ -15,9 +28,11 @@ type Props = {
   onClose: () => void;
   onZoomToRoad: () => void;
   onDesign?: () => void;
+  /** Where on the map the user clicked to open this road, for an accurate Street View link. */
+  clickLngLat?: { lng: number; lat: number } | null;
 };
 
-export default function RoadPanel({ data, loading, error, onClose, onZoomToRoad, onDesign }: Props) {
+export default function RoadPanel({ data, loading, error, onClose, onZoomToRoad, onDesign, clickLngLat }: Props) {
   const s = data?.segment;
   const conf = s ? CONFIDENCE[s.width_source] : null;
   const officialLabel = data?.official_name_source?.name ?? "Official";
@@ -90,6 +105,13 @@ export default function RoadPanel({ data, loading, error, onClose, onZoomToRoad,
                 {s.width_m} m
               </div>
               <p className="mt-1 text-xs text-slate-600">{s.width_source_detail}</p>
+              {s.width_confidence && (
+                <span
+                  className={`mt-2 inline-block rounded px-2 py-0.5 text-xs font-semibold uppercase ${MEASURED_CONFIDENCE[s.width_confidence].badge}`}
+                  title={MEASURED_CONFIDENCE[s.width_confidence].help}>
+                  {MEASURED_CONFIDENCE[s.width_confidence].label}
+                </span>
+              )}
               {s.osm_width_hint && (
                 <p className="mt-2 text-xs text-slate-500">
                   OSM also has <code>width={s.osm_width_hint}</code>. Shown as a hint only: in OSM this often means
@@ -104,6 +126,11 @@ export default function RoadPanel({ data, loading, error, onClose, onZoomToRoad,
                 Design this road
               </button>
             )}
+
+            <a href={streetViewUrl(clickLngLat, s.bbox)} target="_blank" rel="noreferrer"
+              className="flex w-full items-center justify-center gap-1 rounded-md border border-slate-200 py-2 text-xs text-slate-500 hover:bg-slate-50 hover:text-slate-700">
+              Open in Google Street View ↗
+            </a>
 
             {data!.linked_data.length > 0 && (
               <div className="space-y-2" aria-label="Linked data">

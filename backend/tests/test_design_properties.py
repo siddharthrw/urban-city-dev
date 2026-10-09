@@ -114,3 +114,16 @@ def test_rule_ids_reported_are_the_rules_that_apply(row_cm, road_class, oneway, 
         assert set(o["rule_ids"]) <= set(res["rules"])
         for e in o["elements"]:
             assert e["rule_ids"] or e["fallback_minimum"]
+
+
+@settings(max_examples=250, deadline=None)
+@given(row_cm=st.integers(600, 6000))
+def test_current_state_always_sums_exactly_to_the_row(row_cm):
+    current = engine.current_state(row_cm)
+    assert current["total_cm"] == row_cm == sum(e["width_cm"] for e in current["elements"])
+    assert all(e["width_cm"] > 0 for e in current["elements"])
+    # mirrors the same symmetry rule the design options are held to
+    foot = [e["width_cm"] for e in current["elements"] if e["kind"] == "footpath"]
+    assert len(foot) in (0, 2)
+    if len(foot) == 2:
+        assert foot[0] == foot[1]

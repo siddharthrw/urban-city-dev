@@ -14,6 +14,7 @@ _ELEMENT_COLORS: dict[str, tuple[int, int, int]] = {
     "bus_bay":     (255, 200, 100),
     "lane":        (190, 190, 210),
     "median":      (140, 140, 160),
+    "carriageway": (199, 205, 212),
 }
 _DEFAULT_COLOR: tuple[int, int, int] = (200, 200, 200)
 
@@ -56,6 +57,22 @@ def _legend(pdf: FPDF, elements: list[dict]) -> None:
         x += 30
     pdf.set_text_color(0, 0, 0)
     pdf.ln(6)
+
+
+def _current_section(pdf: FPDF, current: dict, row_cm: int) -> None:
+    """The before picture: the road as it is today, ahead of the design options."""
+    pdf.set_font("Helvetica", "B", 11)
+    pdf.cell(0, 6, "Current Road", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.set_font("Helvetica", "I", 7.5)
+    pdf.set_text_color(80, 80, 80)
+    pdf.multi_cell(_USABLE_W, 4, current["note"])
+    pdf.set_text_color(0, 0, 0)
+
+    cs_y = pdf.get_y() + 1
+    _cross_section(pdf, current["elements"], row_cm, _MARGIN, cs_y, _USABLE_W, 14)
+    pdf.set_y(cs_y + 14 + 1)
+    _legend(pdf, current["elements"])
+    pdf.ln(2)
 
 
 def _option_section(pdf: FPDF, opt: dict, result: dict, explanation: str) -> None:
@@ -176,6 +193,10 @@ def build_pdf(result: dict, explanations: dict | None = None) -> bytes:
         pdf.set_font("Helvetica", "", 9)
         pdf.multi_cell(_USABLE_W, 4.5, comparison)
         pdf.ln(2)
+
+    # Current road (before)
+    if result.get("current"):
+        _current_section(pdf, result["current"], result["row_cm"])
 
     # Options
     if result.get("options"):

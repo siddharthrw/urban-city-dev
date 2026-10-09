@@ -224,6 +224,7 @@ def design_segment(city_id: str, seg_id: str, body: DesignBody = DesignBody()):
     result["auto_context"] = sorted(auto_flags)
     result["two_wheeler_pct"] = demand.two_wheeler_pct
     result["two_wheeler_detail"] = demand.two_wheeler_detail
+    result["current"] = engine.current_state(result["row_cm"])
     return result
 
 
@@ -270,6 +271,7 @@ def _design_for(city_id: str, seg_id: str, context: list[str], row_m_override: f
     result["auto_context"] = sorted(auto_flags)
     result["two_wheeler_pct"] = demand.two_wheeler_pct
     result["two_wheeler_detail"] = demand.two_wheeler_detail
+    result["current"] = engine.current_state(result["row_cm"])
     return seg, result
 
 

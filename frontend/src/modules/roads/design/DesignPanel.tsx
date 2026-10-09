@@ -203,6 +203,12 @@ export default function DesignPanel({ cityId, segId, roadWidthM, roadWidthSource
               </ul>
             </details>
 
+            <section aria-label="Current road" className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+              <h3 className="text-sm font-semibold">Current road</h3>
+              <p className="mb-2 text-xs text-slate-600">{result.current.note}</p>
+              <CrossSection elements={result.current.elements} rowCm={result.row_cm} title="Current road" />
+            </section>
+
             {result.options.map((o) => (
               <OptionCard key={o.option_id} option={o} result={result}
                 cityId={cityId} segId={segId} context={context} width={width} />

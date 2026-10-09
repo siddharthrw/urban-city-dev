@@ -1,0 +1,32 @@
+# Maximum PLAUSIBLE right-of-way for a 'measured' width, by road class — a sanity check only,
+# never a design value. A measurement above this is almost certainly the building-footprint
+# method picking up something that isn't the road (a market, a parking lot, open ground, a data
+# gap across the road) rather than a real width. A width above its class's max_m is always marked
+# 'unreliable', even when its IQR looked tight — agreeing on a physically implausible number is
+# still wrong.
+#
+# STATUS: UNCITED. The primary/secondary figures are adapted, with an added margin, from a
+# search-engine summary of the Chennai Second Master Plan 2026 Development Regulations
+# (Annexure IV, proposed road-widening categories): secondary arterial 18.0-24.0 m, primary
+# arterial 27.0-30.5 m, expressway 45.0 m and above. NOBODY HAS CHECKED THIS AGAINST THE ACTUAL
+# PDF AND PAGE — verify before citing it as a standard. Classes with no official category (local
+# streets) use a generous engineering-judgement margin instead.
+#
+# Deliberately only an upper bound: existing Chennai roads are routinely narrower than their
+# category's PLANNED minimum (see width_defaults.yaml), so a minimum here would wrongly flag
+# perfectly normal narrow roads. Only implausibly WIDE measurements are being caught.
+
+classes:
+  motorway:       { max_m: null, citation: "No ceiling: CMDA's expressway category is open-ended (45 m and above)." }
+  motorway_link:  { max_m: null, citation: "Same as motorway." }
+  trunk:          { max_m: null, citation: "Same as motorway." }
+  trunk_link:     { max_m: null, citation: "Same as motorway." }
+  primary:        { max_m: 40,   citation: "UNCITED margin above CMDA's primary arterial category (27.0-30.5 m); not verified against the primary document." }
+  primary_link:   { max_m: 40,   citation: "Same as primary." }
+  secondary:      { max_m: 32,   citation: "UNCITED margin above CMDA's secondary arterial category (18.0-24.0 m); not verified against the primary document." }
+  secondary_link: { max_m: 32,   citation: "Same as secondary." }
+  tertiary:       { max_m: 25,   citation: "UNCITED engineering judgement: no official category for local streets." }
+  tertiary_link:  { max_m: 25,   citation: "Same as tertiary." }
+  unclassified:   { max_m: 20,   citation: "UNCITED engineering judgement: no official category for local streets." }
+  residential:    { max_m: 20,   citation: "UNCITED engineering judgement: no official category for local streets." }
+  living_street:  { max_m: 15,   citation: "UNCITED engineering judgement: no official category for local streets." }

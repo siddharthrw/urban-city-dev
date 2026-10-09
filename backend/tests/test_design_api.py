@@ -22,6 +22,13 @@ def test_design_a_segment_returns_options_that_sum_to_its_width(client):
     assert any("ESTIMATE" in w for w in res["warnings"])
 
 
+def test_design_includes_the_current_road_for_a_before_after_comparison(client):
+    res = design(client, "1-2-0").json()
+    current = res["current"]
+    assert current["total_cm"] == res["row_cm"] == sum(e["width_cm"] for e in current["elements"])
+    assert current["note"]
+
+
 def test_manual_width_override_is_marked_manual_and_can_unlock_more_options(client):
     res = design(client, "1-2-0", row_m=20).json()
     assert res["row_m"] == 20 and res["width_source"] == "manual"

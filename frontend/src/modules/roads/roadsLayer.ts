@@ -1,5 +1,5 @@
 import type * as maplibregl from "maplibre-gl";
-import { CONFIDENCE } from "../../core/provenance";
+import { CONFIDENCE, MEASURED_CONFIDENCE } from "../../core/provenance";
 import type { LayerInfo } from "../../core/api";
 
 export const SOURCE_ID = "roads";
@@ -35,9 +35,17 @@ export function addRoadsLayer(map: maplibregl.Map, layer: LayerInfo) {
     id: LINE, type: "line", ...common,
     layout: { "line-cap": "round", "line-join": "round" },
     paint: {
+      // A 'measured' road is coloured by how much its own width samples agreed (the IQR band),
+      // not by the flat "measured" yellow — a shaky measurement shouldn't look as trustworthy
+      // as a tight one. Roads with no confidence band recorded (or not measured) fall through
+      // to the plain width_source colour.
       "line-color": ["match", ["get", "width_source"],
         "verified", CONFIDENCE.verified.color,
-        "measured", CONFIDENCE.measured.color,
+        "measured", ["match", ["get", "width_confidence"],
+          "reliable", MEASURED_CONFIDENCE.reliable.color,
+          "check", MEASURED_CONFIDENCE.check.color,
+          "unreliable", MEASURED_CONFIDENCE.unreliable.color,
+          CONFIDENCE.measured.color],
         CONFIDENCE.estimated.color],
       "line-width": lineWidth(1),
       "line-opacity": 0.9,

@@ -11,7 +11,7 @@ function segment(overrides: Partial<Segment> = {}): Segment {
     display_name: "North Usman Road", display_name_source: "osm", ref: null, road_class: "secondary",
     oneway: false, lanes_osm: 2, osm_width_hint: null, sidewalk_osm: null, length_m: 83,
     width_m: 18, width_source: "estimated", width_source_detail: "Estimated: default for secondary, 18 m (UNCITED).",
-    bbox: [0, 0, 0, 0], ...overrides,
+    width_confidence: null, bbox: [0, 0, 0, 0], ...overrides,
   };
 }
 
@@ -91,6 +91,37 @@ describe("RoadPanel", () => {
     expect(screen.getByText("Traffic counts")).toBeInTheDocument();
     expect(screen.getByText("SAMPLE")).toBeInTheDocument();
     expect(screen.getByText(/Cars: 1,200/)).toBeInTheDocument();
+  });
+
+  it("shows a confidence badge for a shaky measured width", () => {
+    const data = response({ segment: segment({
+      width_source: "measured", width_confidence: "unreliable",
+      width_source_detail: "Measured from building footprints. (6 samples, IQR 11.3 m)",
+    }) });
+    render(<RoadPanel data={data} loading={false} error={null} onClose={vi.fn()} onZoomToRoad={vi.fn()} />);
+    expect(screen.getByText("Unreliable")).toBeInTheDocument();
+  });
+
+  it("shows no confidence badge for an estimated width", () => {
+    render(<RoadPanel data={response()} loading={false} error={null} onClose={vi.fn()} onZoomToRoad={vi.fn()} />);
+    expect(screen.queryByText("Unreliable")).not.toBeInTheDocument();
+    expect(screen.queryByText("Reliable")).not.toBeInTheDocument();
+  });
+
+  it("links to Google Street View at exactly where the road was clicked", () => {
+    const data = response({ segment: segment({ bbox: [80.24, 13.04, 80.26, 13.06] }) });
+    render(<RoadPanel data={data} loading={false} error={null} onClose={vi.fn()} onZoomToRoad={vi.fn()}
+      clickLngLat={{ lng: 80.2583, lat: 13.0417 }} />);
+    const link = screen.getByRole("link", { name: /Open in Google Street View/ });
+    expect(link).toHaveAttribute("href", "https://www.google.com/maps?layer=c&cbll=13.0417,80.2583&cbp=12,0,,0,0&z=18");
+    expect(link).toHaveAttribute("target", "_blank");
+  });
+
+  it("falls back to the segment's midpoint when there's no click point", () => {
+    const data = response({ segment: segment({ bbox: [80.24, 13.04, 80.26, 13.06] }) });
+    render(<RoadPanel data={data} loading={false} error={null} onClose={vi.fn()} onZoomToRoad={vi.fn()} />);
+    const link = screen.getByRole("link", { name: /Open in Google Street View/ });
+    expect(link).toHaveAttribute("href", "https://www.google.com/maps?layer=c&cbll=13.05,80.25&cbp=12,0,,0,0&z=18");
   });
 
   it("calls onClose and onZoomToRoad", async () => {

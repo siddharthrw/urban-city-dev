@@ -7,6 +7,7 @@ export const KIND_STYLE: Record<ElementKind, { fill: string; text: string; label
   bus_bay: { fill: "#e6a95c", text: "#4a2c06", label: "Bus bay" },
   lane: { fill: "#8e959d", text: "#ffffff", label: "Lane" },
   median: { fill: "#b9dca6", text: "#264015", label: "Median" },
+  carriageway: { fill: "#c7cdd4", text: "#334155", label: "Carriageway" },
 };
 
 const W = 1000; // drawing width in SVG units; 1 unit = row_cm / 1000, so widths are strictly to scale

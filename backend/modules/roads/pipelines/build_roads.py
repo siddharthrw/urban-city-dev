@@ -152,11 +152,29 @@ def to_segments(G, city: dict) -> gpd.GeoDataFrame:
     return seg
 
 
+def measured_confidence(iqr_m: float | None, width_m: float) -> str | None:
+    """How much a 'measured' width's own samples agreed, as a band for the map and the UI.
+
+    IQR (interquartile range) is the spread of the width samples taken along the segment.
+    Small relative to the width = the samples agreed, trust it. Large = they didn't.
+    Thresholds are UNCITED judgement calls, not a standard.
+    """
+    if iqr_m is None or not width_m:
+        return None
+    ratio = iqr_m / width_m
+    if ratio <= 0.15:
+        return "reliable"
+    if ratio <= 0.3:
+        return "check"
+    return "unreliable"
+
+
 def apply_widths(seg: gpd.GeoDataFrame, city_id: str) -> gpd.GeoDataFrame:
     defaults = widths.load_defaults()
+    plausibility = widths.load_plausibility()
     verified_overrides = catalog.get_overrides(city_id, LAYER_ID, "width_m")
     measured_overrides = catalog.get_overrides(city_id, LAYER_ID, "width_m_measured")
-    out_w, out_src, out_det = [], [], []
+    out_w, out_src, out_det, out_conf = [], [], [], []
     for sid, cls, lanes, oneway in zip(seg["seg_id"], seg["road_class"], seg["lanes_osm"], seg["oneway"]):
         est = widths.estimate(cls, None if pd.isna(lanes) else int(lanes), bool(oneway), defaults)
         ver = None
@@ -164,21 +182,36 @@ def apply_widths(seg: gpd.GeoDataFrame, city_id: str) -> gpd.GeoDataFrame:
             o = verified_overrides[sid]
             ver = widths.Width(o["value"], "verified", o["detail"] or "Verified (manual entry)")
         meas = None
+        confidence = None
         if sid in measured_overrides:
             o = measured_overrides[sid]
             try:
                 d = json.loads(o["detail"] or "{}")
-                conf = f" ({d.get('valid_samples', '?')} samples, IQR {d.get('iqr_m', '?')} m)"
+                iqr_m = d.get("iqr_m")
+                conf = f" ({d.get('valid_samples', '?')} samples, IQR {iqr_m if iqr_m is not None else '?'} m)"
             except Exception:
-                conf = ""
-            meas = widths.Width(o["value"], "measured", f"Measured from building footprints.{conf}")
+                iqr_m, conf = None, ""
+            confidence = measured_confidence(iqr_m, o["value"])
+            # Informational only — NOT used to override the IQR-based confidence band. Tried that
+            # and it falsely flagged real roads (Anna Salai, OMR, the Chennai Bypass Expressway)
+            # as 'unreliable', because OSM's road_class is too unreliable in Chennai to use as a
+            # width ceiling (see the EVR Periyar Salai case this whole feature started from).
+            # Surfaced as a soft note for a person to weigh, not a verdict.
+            reason = widths.implausible(o["value"], cls, plausibility)
+            detail = f"Measured from building footprints.{conf}"
+            if reason:
+                detail += f" Note: this {reason} — may be a real wide road, not necessarily wrong."
+            meas = widths.Width(o["value"], "measured", detail)
         w = widths.resolve(est, measured=meas, verified=ver)
         out_w.append(w.width_m)
         out_src.append(w.source)
         out_det.append(w.detail)
+        # Only a 'measured' width that won resolution carries a confidence band; verified/estimated don't need one.
+        out_conf.append(confidence if w.source == "measured" else None)
     seg["width_m"] = out_w
     seg["width_source"] = out_src
     seg["width_source_detail"] = out_det
+    seg["width_confidence"] = out_conf
     return seg
 
 

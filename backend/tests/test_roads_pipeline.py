@@ -118,6 +118,80 @@ def test_verified_override_wins_and_survives_refresh(world):
         br.refresh_widths("chennai")
 
 
+def test_measured_confidence_bands():
+    # ratio = iqr_m / width_m. Thresholds: <=0.15 reliable, <=0.3 check, else unreliable.
+    assert br.measured_confidence(2.9, 76.6) == "reliable"          # ratio 0.038
+    assert br.measured_confidence(3.0, 20.0) == "reliable"          # ratio 0.15, inclusive
+    assert br.measured_confidence(5.0, 20.0) == "check"             # ratio 0.25
+    assert br.measured_confidence(6.0, 20.0) == "check"             # ratio 0.30, inclusive
+    assert br.measured_confidence(11.3, 39.6) == "check"            # ratio 0.285 — the EVR Periyar Salai case
+    assert br.measured_confidence(12.0, 20.0) == "unreliable"       # ratio 0.60
+    assert br.measured_confidence(None, 20.0) is None                # no IQR recorded
+    assert br.measured_confidence(5.0, 0) is None                    # no width to divide by
+
+
+def test_measured_override_gets_a_confidence_band_estimated_and_verified_dont(world):
+    with db.connect() as con:
+        con.execute(
+            "INSERT OR REPLACE INTO feature_overrides VALUES (?,?,?,?,?,?,?,?)",
+            ["chennai", "roads", "1-2-0", "width_m_measured", 18.0,
+             '{"valid_samples": 5, "total_samples": 6, "iqr_m": 1.0}', "manual-test-measured", datetime.now()],
+        )
+    try:
+        info = br.refresh_widths("chennai")
+        assert info["width_source_counts"] == {"estimated": 10, "measured": 1}
+        seg = pd.read_parquet(catalog.get_layer("chennai", "roads")["path"]).set_index("seg_id")
+        assert seg.loc["1-2-0", "width_source"] == "measured"
+        assert seg.loc["1-2-0", "width_confidence"] == "reliable"  # IQR 1.0 / width 18.0 = 0.056
+        # Every estimated road has no confidence band — it isn't a measurement at all.
+        others = seg.drop(index="1-2-0")
+        assert others["width_confidence"].isna().all()
+    finally:
+        with db.connect() as con:
+            con.execute("DELETE FROM feature_overrides WHERE source_id = 'manual-test-measured'")
+        br.refresh_widths("chennai")
+
+
+def test_a_shaky_measurement_gets_marked_unreliable(world):
+    with db.connect() as con:
+        con.execute(
+            "INSERT OR REPLACE INTO feature_overrides VALUES (?,?,?,?,?,?,?,?)",
+            ["chennai", "roads", "1-2-0", "width_m_measured", 20.0,
+             '{"valid_samples": 4, "total_samples": 6, "iqr_m": 12.0}', "manual-test-shaky", datetime.now()],
+        )
+    try:
+        br.refresh_widths("chennai")
+        seg = pd.read_parquet(catalog.get_layer("chennai", "roads")["path"]).set_index("seg_id")
+        assert seg.loc["1-2-0", "width_confidence"] == "unreliable"
+    finally:
+        with db.connect() as con:
+            con.execute("DELETE FROM feature_overrides WHERE source_id = 'manual-test-shaky'")
+        br.refresh_widths("chennai")
+
+
+def test_width_confidence_reaches_the_tiles(world):
+    with db.connect() as con:
+        con.execute(
+            "INSERT OR REPLACE INTO feature_overrides VALUES (?,?,?,?,?,?,?,?)",
+            ["chennai", "roads", "1-2-0", "width_m_measured", 18.0,
+             '{"valid_samples": 5, "total_samples": 6, "iqr_m": 1.0}', "manual-test-tiles", datetime.now()],
+        )
+    try:
+        br.refresh_widths("chennai")
+        with open(paths.tiles_path("chennai", "roads", "roads"), "rb") as f:
+            r = Reader(MmapSource(f))
+            h = r.header()
+            data = r.get(h["max_zoom"], *tile_xy(LON + 0.002, LAT, h["max_zoom"]))
+            feats = {feat["properties"]["seg_id"]: feat["properties"]
+                    for feat in mapbox_vector_tile.decode(gzip.decompress(data))["roads"]["features"]}
+        del r  # Windows won't let refresh_widths() replace the tiles file while its mmap is still open.
+        assert feats["1-2-0"]["width_confidence"] == "reliable"
+    finally:
+        with db.connect() as con:
+            con.execute("DELETE FROM feature_overrides WHERE source_id = 'manual-test-tiles'")
+        br.refresh_widths("chennai")
+
+
 def test_refresh_keeps_layer_sources(world):
     before = {s["source_id"] for s in catalog.get_layer("chennai", "roads")["sources"]}
     br.refresh_widths("chennai")

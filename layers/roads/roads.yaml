@@ -15,7 +15,7 @@ tiles:
     10: "road_class IN ('motorway','trunk','primary','secondary','motorway_link','trunk_link','primary_link')"
     12: "road_class NOT IN ('residential','living_street','unclassified')"
     13: "TRUE"
-  properties: [seg_id, display_name, road_class, width_m, width_source]
+  properties: [seg_id, display_name, road_class, width_m, width_source, width_confidence]
 
 schema:
   city_id:             { type: string,  description: City this feature belongs to }
@@ -38,4 +38,5 @@ schema:
   width_m:             { type: double,  description: Right-of-way width in metres (best available) }
   width_source:        { type: string,  description: "estimated | measured | verified" }
   width_source_detail: { type: string,  description: How width_m was obtained, in words }
+  width_confidence:    { type: string,  nullable: true, description: "Only set when width_source is 'measured': reliable | check | unreliable, from how much the width samples along the segment agreed (IQR relative to width)" }
   geometry:            { type: LineString, crs: "EPSG:4326" }

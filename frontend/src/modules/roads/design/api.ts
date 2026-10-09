@@ -1,6 +1,6 @@
 import { ApiError, sendJson } from "../../../core/api";
 
-export type ElementKind = "footpath" | "tree_strip" | "cycle_track" | "bus_bay" | "lane" | "median";
+export type ElementKind = "footpath" | "tree_strip" | "cycle_track" | "bus_bay" | "lane" | "median" | "carriageway";
 
 export type DesignElement = {
   kind: ElementKind;
@@ -56,6 +56,7 @@ export type DesignResult = {
   two_wheeler_pct: number | null;
   two_wheeler_detail: string;
   inputs: DesignInput[];
+  current: { elements: DesignElement[]; total_cm: number; note: string };
   options: DesignOption[];
   dropped: { option_id: string; name: string; reason: string }[];
   warnings: string[];

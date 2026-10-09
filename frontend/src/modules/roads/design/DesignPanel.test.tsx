@@ -27,6 +27,10 @@ const RESULT: DesignResult = {
   auto_context: [], nearby: [], two_wheeler_pct: null, two_wheeler_detail: "",
   inputs: [{ name: "Right-of-way", value: "9.6 m", source: "estimated", detail: "Typical width for this type of road (not measured)." },
     { name: "Lanes needed", value: "2 per direction", source: "default", detail: "No traffic count linked." }],
+  current: {
+    elements: [e("footpath", 160), e("carriageway", 640), e("footpath", 160, "right")],
+    total_cm: 960, note: "Approximate: this splits the right-of-way into a notional footpath and carriageway for comparison.",
+  },
   options: [OPTION],
   dropped: [{ option_id: "balanced", name: "Balanced (cycle track + shade)", reason: "Needs at least 16 m, but the road is 9.6 m." }],
   warnings: ["The road width is an ESTIMATE (a typical width).", "Dimensions come from PLACEHOLDER rules (UNCITED guesses)."],
@@ -56,8 +60,16 @@ describe("DesignPanel", () => {
   it("draws each option's cross-section to the road's width", async () => {
     render(<DesignPanel {...props} />);
     await screen.findByText("Traffic priority");
-    expect(screen.getAllByTestId("element")).toHaveLength(4);
-    expect(screen.getByText("9.6 m right-of-way")).toBeInTheDocument();
+    const option = screen.getByRole("region", { name: "Traffic priority" });
+    expect(within(option).getAllByTestId("element")).toHaveLength(4);
+    expect(within(option).getByText("9.6 m right-of-way")).toBeInTheDocument();
+  });
+
+  it("shows the current road alongside the design options", async () => {
+    render(<DesignPanel {...props} />);
+    const current = await screen.findByRole("region", { name: "Current road" });
+    expect(within(current).getAllByTestId("element")).toHaveLength(3);
+    expect(within(current).getByText(/Approximate/)).toBeInTheDocument();
   });
 
   it("shows the warnings, including the estimate and placeholder-rule warnings", async () => {

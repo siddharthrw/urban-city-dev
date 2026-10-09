@@ -21,3 +21,28 @@ export const CONFIDENCE: Record<WidthSource, { label: string; color: string; bad
     help: "From a survey, official record or on-site measurement.",
   },
 };
+
+// How much a 'measured' width's own samples agreed with each other (IQR relative to width).
+// Only applies within width_source === "measured" — estimated/verified don't carry this.
+export type WidthConfidence = "reliable" | "check" | "unreliable";
+
+export const MEASURED_CONFIDENCE: Record<WidthConfidence, { label: string; color: string; badge: string; help: string }> = {
+  reliable: {
+    label: "Reliable",
+    color: "#65a30d",
+    badge: "bg-lime-100 text-lime-800",
+    help: "The width samples along this road agreed closely (IQR ≤ 15% of the width). Trust it.",
+  },
+  check: {
+    label: "Check first",
+    color: "#f59e0b",
+    badge: "bg-amber-100 text-amber-800",
+    help: "The width samples disagreed somewhat (IQR 15–30% of the width). Worth a second look before relying on it.",
+  },
+  unreliable: {
+    label: "Unreliable",
+    color: "#dc2626",
+    badge: "bg-red-100 text-red-800",
+    help: "The width samples disagreed a lot (IQR over 30% of the width). Don't design against this — get it surveyed.",
+  },
+};

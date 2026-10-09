@@ -9,7 +9,7 @@ import CityMap from "./core/map/CityMap";
 import {
   addImportedLayers, queryImported, refreshImported, setImportedVisible, type ImportedHit,
 } from "./core/map/importedLayers";
-import { CONFIDENCE, type WidthSource } from "./core/provenance";
+import { CONFIDENCE, MEASURED_CONFIDENCE, type WidthConfidence, type WidthSource } from "./core/provenance";
 import { roadsApi, type SearchHit, type SegmentResponse } from "./modules/roads/api";
 import { addRoadsLayer, highlight, keepClearOfPanel, roadAt, setRoadsVisible } from "./modules/roads/roadsLayer";
 import DesignPanel from "./modules/roads/design/DesignPanel";
@@ -32,6 +32,7 @@ export default function App() {
   const [map, setMap] = useState<maplibregl.Map | null>(null);
 
   const [segId, setSegId] = useState<string | null>(null);
+  const [clickLngLat, setClickLngLat] = useState<{ lng: number; lat: number } | null>(null);
   const [seg, setSeg] = useState<SegmentResponse | null>(null);
   const [segLoading, setSegLoading] = useState(false);
   const [segError, setSegError] = useState<string | null>(null);
@@ -121,7 +122,7 @@ export default function App() {
       }
       setFeature(null);
       setSegId(id);
-      if (id) keepClearOfPanel(map, e.point);
+      if (id) { setClickLngLat({ lng: e.lngLat.lng, lat: e.lngLat.lat }); keepClearOfPanel(map, e.point); }
       else setPickedRoad(null);
     };
     const move = (e: maplibregl.MapMouseEvent) => {
@@ -250,7 +251,7 @@ export default function App() {
                 onClose={() => { setDesigning(false); setSegId(null); setPickedRoad(null); }} />
             )}
             {segId && !designing && (
-              <RoadPanel data={seg} loading={segLoading} error={segError}
+              <RoadPanel data={seg} loading={segLoading} error={segError} clickLngLat={clickLngLat}
                 onClose={() => { setSegId(null); setPickedRoad(null); }}
                 onZoomToRoad={() => seg?.road && fit(seg.road.bbox)}
                 onDesign={() => setDesigning(true)} />
@@ -287,12 +288,27 @@ function WidthLegend() {
   return (
     <div className="ml-6 mt-2 space-y-1 text-xs text-slate-600">
       <div className="text-slate-500">Colour = how far to trust the width</div>
-      {(Object.keys(CONFIDENCE) as WidthSource[]).map((k) => (
-        <div key={k} className="flex items-center gap-2" title={CONFIDENCE[k].help}>
-          <span className="inline-block h-1.5 w-5 rounded" style={{ background: CONFIDENCE[k].color }} />
-          {CONFIDENCE[k].label}
-        </div>
-      ))}
+      {(Object.keys(CONFIDENCE) as WidthSource[]).map((k) =>
+        k === "measured" ? (
+          <div key={k}>
+            <div className="flex items-center gap-2 text-slate-500">
+              <span className="inline-block h-1.5 w-5 rounded bg-slate-300" />
+              Measured, by how well it agrees with itself:
+            </div>
+            {(Object.keys(MEASURED_CONFIDENCE) as WidthConfidence[]).map((c) => (
+              <div key={c} className="ml-5 flex items-center gap-2" title={MEASURED_CONFIDENCE[c].help}>
+                <span className="inline-block h-1.5 w-5 rounded" style={{ background: MEASURED_CONFIDENCE[c].color }} />
+                {MEASURED_CONFIDENCE[c].label}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div key={k} className="flex items-center gap-2" title={CONFIDENCE[k].help}>
+            <span className="inline-block h-1.5 w-5 rounded" style={{ background: CONFIDENCE[k].color }} />
+            {CONFIDENCE[k].label}
+          </div>
+        )
+      )}
     </div>
   );
 }

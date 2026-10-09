@@ -202,6 +202,33 @@ def design(*, row_m: float, road_class: str, oneway: bool, context: set[str] | f
             "options": options, "dropped": dropped, "warnings": warnings, "rules": rules_meta}
 
 
+def current_state(row_cm: int) -> dict:
+    """The road as it is today, for a before/after comparison — not a design.
+
+    No rules, no lane count (we don't know it): just the right-of-way split into a notional
+    footpath on each side (if there's room) and one undivided "existing carriageway" block.
+    Always sums exactly to row_cm, the same guarantee the design options give.
+    """
+    footpath_cm = min(150, row_cm // 6)
+    has_footpath = footpath_cm >= 60 and row_cm - 2 * footpath_cm >= 300
+    if has_footpath:
+        carriageway_cm = row_cm - 2 * footpath_cm
+        elements = [
+            {"kind": "footpath", "label": "Footpath (approx.)", "side": "left",
+             "width_cm": footpath_cm, "width_m": footpath_cm / 100},
+            {"kind": "carriageway", "label": "Existing carriageway", "side": "centre",
+             "width_cm": carriageway_cm, "width_m": carriageway_cm / 100},
+            {"kind": "footpath", "label": "Footpath (approx.)", "side": "right",
+             "width_cm": footpath_cm, "width_m": footpath_cm / 100},
+        ]
+    else:
+        elements = [{"kind": "carriageway", "label": "Existing carriageway", "side": "centre",
+                     "width_cm": row_cm, "width_m": row_cm / 100}]
+    return {"elements": elements, "total_cm": sum(e["width_cm"] for e in elements),
+            "note": "Approximate: this splits the right-of-way into a notional footpath and "
+                    "carriageway for comparison. It is not a survey of lane markings or footpath width."}
+
+
 def _inputs(row_cm, road_class, oneway, context, demand, width_source) -> list[dict]:
     out = [{"name": "Right-of-way", "value": f"{row_cm / 100:g} m", "source": width_source,
             "detail": {"estimated": "Typical width for this type of road (not measured).",

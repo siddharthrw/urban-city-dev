@@ -21,6 +21,7 @@ export type Segment = {
   width_m: number;
   width_source: WidthSource;
   width_source_detail: string;
+  width_confidence: "reliable" | "check" | "unreliable" | null;
   bbox: [number, number, number, number];
 };
 

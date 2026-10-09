@@ -8,6 +8,7 @@ from pathlib import Path
 import yaml
 
 DEFAULTS_PATH = Path(__file__).with_name("width_defaults.yaml")
+PLAUSIBILITY_PATH = Path(__file__).with_name("width_plausibility.yaml")
 
 # Classes where a one-way OSM way is often one half of a divided road.
 DIVIDED_ROAD_CLASSES = {"motorway", "trunk", "primary", "secondary"}
@@ -54,3 +55,23 @@ def estimate(road_class: str, lanes: int | None, oneway: bool, defaults: dict) -
 
 def resolve(estimated: Width, measured: Width | None = None, verified: Width | None = None) -> Width:
     return verified or measured or estimated
+
+
+def load_plausibility(path: Path = PLAUSIBILITY_PATH) -> dict:
+    with open(path, encoding="utf-8") as f:
+        return yaml.safe_load(f)
+
+
+def implausible(width_m: float, road_class: str, plausibility: dict) -> str | None:
+    """None if width_m is a believable 'measured' width for this road class, else why it isn't.
+
+    A sanity check only — catches a measurement that is almost certainly the building-footprint
+    method picking up something that isn't the road, not a judgement that the road is wrong.
+    """
+    cls = plausibility["classes"].get(road_class)
+    if cls is None or cls["max_m"] is None:
+        return None
+    if width_m <= cls["max_m"]:
+        return None
+    return (f"exceeds the plausible maximum for a {road_class} road "
+            f"({cls['max_m']} m — {cls['citation']})")
