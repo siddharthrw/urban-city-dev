@@ -245,6 +245,7 @@ function OptionCard({ option: o, result, cityId, segId, context, width }: {
   width: string;
 }) {
   const m = o.metrics;
+  const [show3d, setShow3d] = useState(false);
   const [explanation, setExplanation] = useState<string | null>(null);
   const [explaining, setExplaining] = useState(false);
   const [explainError, setExplainError] = useState<string | null>(null);
@@ -278,17 +279,23 @@ function OptionCard({ option: o, result, cityId, segId, context, width }: {
       <p className="mb-2 text-xs text-slate-600">{o.summary}</p>
       <CrossSection elements={o.elements} rowCm={result.row_cm} title={o.name} />
 
-      <details className="mt-2 text-xs">
+      <details className="mt-2 text-xs" onToggle={(e) => setShow3d(e.currentTarget.open)}>
         <summary className="cursor-pointer font-medium text-slate-700">3D view &amp; travel-time estimate (sample)</summary>
-        <div className="mt-2 grid gap-3 sm:grid-cols-2">
-          <RoadScene3D elements={result.current.elements} rowCm={result.row_cm}
-            trafficDensity={o.impact.before.vc_ratio} label="Today" />
-          <RoadScene3D elements={o.elements} rowCm={result.row_cm}
-            trafficDensity={o.impact.after.vc_ratio} label="This option" />
-        </div>
-        <div className="mt-2">
-          <TrafficImpactPanel impact={o.impact} />
-        </div>
+        {show3d && (
+          <>
+            {/* Mounted only while open: each scene holds its own WebGL context, and a browser
+                allows few of those at once — see RoadScene3D. */}
+            <div className="mt-2 grid gap-3 sm:grid-cols-2">
+              <RoadScene3D elements={result.current.elements} rowCm={result.row_cm}
+                trafficDensity={o.impact.before.vc_ratio} label="Today" />
+              <RoadScene3D elements={o.elements} rowCm={result.row_cm}
+                trafficDensity={o.impact.after.vc_ratio} label="This option" />
+            </div>
+            <div className="mt-2">
+              <TrafficImpactPanel impact={o.impact} />
+            </div>
+          </>
+        )}
       </details>
 
       <dl className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-xs">
