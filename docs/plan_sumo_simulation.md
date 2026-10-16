@@ -1,8 +1,38 @@
 # Plan: real traffic simulation with SUMO
 
-Status: planned, not started. Branched from `feature/3d-road-view` at commit 59b1511 so the
-sample-data impact estimate (`backend/modules/roads/design/impact.py`, BPR-curve based) keeps
-shipping on that branch untouched while this is built out separately.
+Status: first slice proven, nothing wired into the app yet. Branched from `feature/3d-road-view`
+at commit 59b1511 so the sample-data impact estimate (`backend/modules/roads/design/impact.py`,
+BPR-curve based) keeps shipping on that branch untouched while this is built out separately.
+
+## First slice: done
+
+`eclipse-sumo` (the PyPI package) bundles the real SUMO binaries for Windows — no separate
+installer needed. Installed and proven end to end:
+
+```
+pip install eclipse-sumo traci sumolib
+python -m modules.roads.design.sumo_poc.run_poc   # from backend/
+```
+
+`backend/modules/roads/design/sumo_poc/run_poc.py` builds the smallest network that produces a
+meaningful result (two nodes, one edge, standing in for a road segment — not real OSM geometry
+yet), generates demand from the *same* `sample_demand_pcu()` call `impact.py` already uses (so
+it's an apples-to-apples comparison, not a different sample number), runs headless `sumo` twice
+(5 lanes/direction vs 1), and reads the mean travel time per vehicle back from SUMO's own
+`tripinfo.xml`. Output on this machine:
+
+```
+Today (5 lanes/direction): 1800 vehicles completed, mean travel time 0.93 min
+Narrowed option (1 lane/direction): 1698 vehicles completed, mean travel time 1.15 min
+```
+
+Narrower road → fewer vehicles get through in the same window and the ones that do take longer —
+a real emergent congestion effect from the simulator, not a formula. This is **not** wired into
+`impact.py`/`module.py` and `eclipse-sumo` is **not** added to `backend/requirements.txt` (it's a
+~270MB download; making it a hard dependency would break the normal app/CI for everyone, including
+the collaborator who only touches `data/`/`docs/`/`rules/`). It's an opt-in proof of concept only.
+
+## Why a separate branch
 
 ## Why a separate branch
 
@@ -62,9 +92,10 @@ just the `sample_data` flag flips to `False` and `note` changes.
   "synchronous API call" to "kick off a simulation job, poll/stream the result" — a real API
   shape change the frontend would need to handle (loading state, not instant response).
 
-## Suggested first slice
+## Next slice
 
-Smallest useful step: get SUMO installed and `netconvert` + `randomTrips.py` + headless `sumo`
-producing a `tripinfo.xml` for *one* hardcoded segment from the command line, outside the app
-entirely. Prove the pipeline end to end before wiring it into FastAPI. That's its own
-self-contained task — good candidate for a fresh session once scoped further.
+With the toolchain proven, the next step up is network generation from the *real* segment
+geometry (item 2 above) instead of a straight two-node stand-in, and only then wiring a strategy
+switch into `module.py` (item 5) — both still open questions above (deploy-target feasibility,
+and the sync-vs-job API shape) should get a real answer from Siddharth before that wiring work
+starts, since they change the shape of the API response the frontend consumes.
