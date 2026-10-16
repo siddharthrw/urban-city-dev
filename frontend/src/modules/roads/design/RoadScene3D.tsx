@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { DesignElement } from "./api";
 import { projectLocal } from "./geo";
 
@@ -9,6 +9,8 @@ const MAX_CARS_PER_LANE = 5;
 const TREE_SPACING_M = 4;
 const BUILDING_SPACING_M = 10;
 const MAX_PEDESTRIANS_PER_FOOTPATH = 3;
+const STREETLIGHT_SPACING_M = 22; // real point lights add real per-pixel cost; spaced out to stay cheap
+const STREETLIGHT_SPAN_M = 170; // placed over a smaller window than buildings/trees — they matter most near the camera
 // Real-world speeds, not fractions of the curve — t-per-frame below is derived from these divided
 // by curveLength, so apparent motion looks the same whether the segment is 40 m or 600 m. Before
 // this, speed was a flat fraction of the *whole* curve per frame, so a long segment made cars and
@@ -50,6 +52,10 @@ type Props = {
   /** Roughly volume/capacity (0-1+); scales how many cars drive the lanes and how fast. Omit for none. */
   trafficDensity?: number | null;
   label: string;
+  /** Optional overlay rendered inside the same bounding box as the canvas (not the label below
+   * it) — e.g. RoadDashboard's HUD readouts. Only shown once the scene is actually ready, so it
+   * never sits on top of the loading/error placeholders. */
+  hud?: ReactNode;
 };
 
 /** A 3D model of one cross-section swept along the segment's real curved alignment, with cars
@@ -59,7 +65,7 @@ type Props = {
  * notes this implements. */
 type Status = "loading" | "ready" | "unsupported" | "error";
 
-export default function RoadScene3D({ elements, rowCm, geometry, trafficDensity, label }: Props) {
+export default function RoadScene3D({ elements, rowCm, geometry, trafficDensity, label, hud }: Props) {
   const container = useRef<HTMLDivElement>(null);
   const [status, setStatus] = useState<Status>("loading");
 
@@ -111,8 +117,8 @@ export default function RoadScene3D({ elements, rowCm, geometry, trafficDensity,
       controls.enableDamping = true;
       controls.maxPolarAngle = Math.PI / 2.1;
 
-      scene.add(new THREE.HemisphereLight(0x3a537a, 0x14110d, 0.55));
-      const sun = new THREE.DirectionalLight(0xffb067, 1.15);
+      scene.add(new THREE.HemisphereLight(0x4a6690, 0x1c1812, 0.75));
+      const sun = new THREE.DirectionalLight(0xffb067, 1.3);
       sun.position.set(-26, 18, 14);
       scene.add(sun);
       const fill = new THREE.DirectionalLight(0x6fa8ff, 0.3);
@@ -333,6 +339,46 @@ export default function RoadScene3D({ elements, rowCm, geometry, trafficDensity,
         }
       }
 
+      // Streetlights: illustrative placement (no real fixture dataset — same simplification as
+      // the buildings/trees above), but real THREE.PointLights, which is the point: the dusk
+      // scene above is intentionally dim, and these are what should light it back up near the
+      // road instead of leaving it looking flatly dark. Spaced wider and over a smaller span than
+      // buildings/trees since each one adds real per-pixel lighting cost.
+      const lightCount = Math.max(1, Math.round(Math.min(windowSpan, STREETLIGHT_SPAN_M) / STREETLIGHT_SPACING_M));
+      const lightSpan = Math.min(windowFrac, STREETLIGHT_SPAN_M / curveLength);
+      const poleMat = new THREE.MeshStandardMaterial({ color: 0x24262b });
+      const lampGlowMat = new THREE.MeshBasicMaterial({ color: 0xffdf9e });
+      for (const side of [-1, 1]) {
+        for (let i = 0; i < lightCount; i++) {
+          const t = 0.5 - lightSpan / 2 + lightSpan * ((i + 0.5) / lightCount);
+          const { point, right } = frameAt(t);
+          const base = point.clone().addScaledVector(right, side * (halfRow + 0.6));
+          const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.07, 4.2), poleMat);
+          pole.position.set(base.x, 2.1, base.z);
+          scene.add(pole);
+          // A short arm reaching over the footpath toward the road, like a real street lamp.
+          const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 1.0), poleMat);
+          arm.rotation.z = Math.PI / 2.3 * -side;
+          arm.position.set(base.x - side * 0.4, 4.1, base.z);
+          scene.add(arm);
+          const lampPos = { x: base.x - side * 0.8, y: 4.25, z: base.z };
+          const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.3, 10, 10), lampGlowMat);
+          lamp.position.set(lampPos.x, lampPos.y, lampPos.z);
+          scene.add(lamp);
+          // A bigger, translucent halo behind the lamp — a cheap stand-in for real bloom
+          // post-processing, so the light source itself is unmistakable, not just its ground pool.
+          const halo = new THREE.Mesh(
+            new THREE.SphereGeometry(0.75, 10, 10),
+            new THREE.MeshBasicMaterial({ color: 0xffdf9e, transparent: true, opacity: 0.22 }),
+          );
+          halo.position.set(lampPos.x, lampPos.y, lampPos.z);
+          scene.add(halo);
+          const light = new THREE.PointLight(0xffc97a, 9, 18, 2);
+          light.position.set(lampPos.x, lampPos.y, lampPos.z);
+          scene.add(light);
+        }
+      }
+
       // Driving cars: animated along the curve's arc length each frame, oriented to the tangent —
       // a visual hint of congestion (count and speed from trafficDensity), not a simulation. Each
       // is a chassis + cabin pair (not one flat box) with a few common car colours, so they read
@@ -475,6 +521,7 @@ export default function RoadScene3D({ elements, rowCm, geometry, trafficDensity,
             Couldn't build the 3D view for this road. Try "Today" / "This option" again, or reload the page.
           </div>
         )}
+        {status === "ready" && hud}
       </div>
       <p className="mt-1 text-center text-xs text-slate-500">{label}</p>
     </div>

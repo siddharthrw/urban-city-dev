@@ -96,6 +96,13 @@ export default function RoadDashboard({ cityId, segId, optionId, context, rowM, 
                     geometry={result.segment.geometry}
                     trafficDensity={mode === "today" ? option.impact.before.vc_ratio : option.impact.after.vc_ratio}
                     label={mode === "today" ? "Today" : option.name}
+                    hud={
+                      <SceneHud
+                        laneLabel={mode === "today" ? `${option.impact.before.lanes} lane${option.impact.before.lanes === 1 ? "" : "s"}` : `${option.impact.after.lanes} lane${option.impact.after.lanes === 1 ? "" : "s"}`}
+                        vcRatio={mode === "today" ? option.impact.before.vc_ratio : option.impact.after.vc_ratio}
+                        engine={option.impact.engine === "sumo" ? "SUMO" : "SAMPLE"}
+                      />
+                    }
                   />
                 </div>
 
@@ -158,6 +165,37 @@ function Kpi({ label, value, accent }: { label: string; value: string; accent?: 
     <div className={`rounded-lg border px-3 py-2 ${accent ? "border-emerald-400/40 bg-emerald-400/5" : "border-slate-700 bg-slate-900/60"}`}>
       <div className="text-[10px] uppercase tracking-widest text-slate-400">{label}</div>
       <div className={`mt-0.5 text-lg font-semibold ${accent ? "text-emerald-300" : "text-slate-100"}`}>{value}</div>
+    </div>
+  );
+}
+
+/** A React-only (no three.js) overlay on top of the 3D canvas: corner readouts, a scan-line
+ * sweep and a vignette. Purely cosmetic chrome — every value it shows is read straight off
+ * `option.impact`, nothing computed here, and it's pointer-events-none so it never blocks
+ * orbiting/zooming the scene underneath. */
+function SceneHud({ laneLabel, vcRatio, engine }: { laneLabel: string; vcRatio: number | null; engine: "SUMO" | "SAMPLE" }) {
+  const pct = vcRatio == null ? null : Math.round(Math.min(1, vcRatio) * 100);
+  const level = pct == null ? "slate" : pct < 50 ? "emerald" : pct < 80 ? "amber" : "red";
+  const levelColor = { slate: "#94a3b8", emerald: "#34d399", amber: "#fbbf24", red: "#f87171" }[level];
+  return (
+    <div className="pointer-events-none absolute inset-0">
+      <div className="absolute inset-0 shadow-[inset_0_0_60px_25px_rgba(2,6,23,0.55)]" />
+      <div className="absolute left-2 top-2 flex items-center gap-1.5 rounded bg-slate-950/70 px-2 py-1 font-mono text-[10px] uppercase tracking-widest text-cyan-200/90 backdrop-blur-sm">
+        <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-cyan-400" />
+        {laneLabel}
+      </div>
+      <div className="absolute right-2 top-2 rounded bg-slate-950/70 px-2 py-1 font-mono text-[10px] font-bold uppercase tracking-widest backdrop-blur-sm"
+        style={{ color: engine === "SUMO" ? "#34d399" : "#c4b5fd" }}>
+        {engine}
+      </div>
+      {pct != null && (
+        <div className="absolute bottom-2 left-2 flex items-center gap-1.5 rounded bg-slate-950/70 px-2 py-1 font-mono text-[10px] uppercase tracking-widest backdrop-blur-sm" style={{ color: levelColor }}>
+          <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: levelColor }} />
+          {pct}% capacity
+        </div>
+      )}
+      <div className="absolute inset-x-0 top-0 h-px animate-[scan_4s_linear_infinite] bg-gradient-to-r from-transparent via-cyan-400/70 to-transparent" />
+      <style>{"@keyframes scan { 0% { transform: translateY(0); opacity: .9; } 100% { transform: translateY(256px); opacity: 0; } }"}</style>
     </div>
   );
 }
