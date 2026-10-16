@@ -41,6 +41,10 @@ export type DesignInput = { name: string; value: string; source: string; detail:
  * no real traffic count behind these numbers — see the backend module's docstring. */
 export type TrafficImpact = {
   sample_data: true;
+  /** "sumo" when this came from a real SUMO microsimulation (backend/requirements-sumo.txt
+   * installed); absent/"bpr" for the formula-based estimate. The demand feeding either one is
+   * still sample data — see `note`. */
+  engine?: "sumo" | "bpr";
   note: string;
   sample_pcu: number;
   sample_pcu_detail: string;

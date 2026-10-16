@@ -1,4 +1,7 @@
 # One-time setup (safe to re-run): Python venv + backend deps, frontend deps, .env.
+# -IncludeSumo also installs the real SUMO traffic-simulation toolchain (~270MB; see
+# backend/requirements-sumo.txt). Without it, /design uses the BPR sample-data estimate.
+param([switch]$IncludeSumo)
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
@@ -9,6 +12,9 @@ if (-not (Test-Path ".venv")) {
 }
 & .\.venv\Scripts\python.exe -m pip install --upgrade pip
 & .\.venv\Scripts\python.exe -m pip install -r backend\requirements.txt
+if ($IncludeSumo) {
+    & .\.venv\Scripts\python.exe -m pip install -r backend\requirements-sumo.txt
+}
 
 if (-not (Test-Path ".env")) {
     Copy-Item .env.example .env

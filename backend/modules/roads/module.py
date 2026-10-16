@@ -3,6 +3,8 @@
 M1: road details and search. M1b: links imported data to roads; width surveys -> verified widths.
 Design endpoints arrive in M3. M5: set verified width from the UI.
 """
+import logging
+
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
@@ -12,7 +14,7 @@ from core.rules.schema import RuleError
 from core.store import catalog, layers
 from core.text import normalize_name
 from modules.roads import hooks, linking
-from modules.roads.design import engine, impact
+from modules.roads.design import engine, impact, simulate
 from modules.roads.design.demand import Demand, build_demand
 from modules.roads.design.explain import explain as _explain, explain_one as _explain_one
 from modules.roads.design.pdf import build_pdf
@@ -181,11 +183,19 @@ class DesignBody(BaseModel):
 
 
 def _attach_impact(result: dict, seg: dict, cfg: dict) -> None:
-    """Sample before/after travel-time estimate per option (M17) — see design/impact.py."""
+    """Before/after travel-time estimate per option: a real SUMO simulation when the SUMO
+    toolchain is installed in this environment (see design/simulate.py), otherwise the BPR-curve
+    estimate (design/impact.py, M17). A SUMO run that errors (subprocess failure, timeout) falls
+    back the same way, rather than failing the whole design request over one option's impact."""
     for opt in result["options"]:
-        opt["impact"] = impact.estimate(
+        kwargs = dict(
             current_elements=result["current"]["elements"], option_lanes=opt["metrics"]["lanes"],
             oneway=bool(seg["oneway"]), length_m=seg.get("length_m"), road_class=seg["road_class"], cfg=cfg)
+        try:
+            opt["impact"] = simulate.estimate(**kwargs)
+        except Exception as exc:
+            logging.getLogger(__name__).info("SUMO estimate unavailable, falling back to BPR: %s", exc)
+            opt["impact"] = impact.estimate(**kwargs)
 
 
 def _demand_for(city_id: str, seg_id: str, cfg: dict) -> Demand:

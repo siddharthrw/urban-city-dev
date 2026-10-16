@@ -3,7 +3,19 @@ import io
 
 import pytest
 
+from modules.roads.design import simulate
+
 D = "/api/roads/chennai/segments"
+
+
+@pytest.fixture(autouse=True)
+def _force_bpr_impact(monkeypatch):
+    """These tests are about the /design response shape, not which travel-time engine produced
+    it — real SUMO runs are slow (a subprocess pair per option) and only installed on some
+    machines (see backend/requirements-sumo.txt), so forcing the BPR path here keeps this suite
+    fast and deterministic everywhere. The SUMO path itself is covered by
+    test_design_simulate.py, which skips when SUMO isn't installed."""
+    monkeypatch.setattr(simulate, "available", lambda: False)
 
 
 def design(client, seg_id, **body):

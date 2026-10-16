@@ -83,9 +83,13 @@ export default function RoadScene3D({ elements, rowCm, geometry, trafficDensity,
       const height = el.clientHeight || 260;
       const rowM = rowCm / 100;
 
+      // A dusk "control room" look to match the dashboard it sits in, rather than a flat daylight
+      // scene: dark sky/fog (no washed-out white horizon), a low warm "sunset" key light for rim
+      // contrast on the buildings, and a cool blue fill so shadowed faces don't go pure black.
+      const SKY_COLOR = 0x0c1526;
       scene = new THREE.Scene();
-      scene.background = new THREE.Color(0xeaf2f8);
-      scene.fog = new THREE.Fog(0xeaf2f8, 50, 260);
+      scene.background = new THREE.Color(SKY_COLOR);
+      scene.fog = new THREE.Fog(SKY_COLOR, 60, 240);
 
       const camera = new THREE.PerspectiveCamera(50, width / height, 0.1, 1000);
 
@@ -97,10 +101,13 @@ export default function RoadScene3D({ elements, rowCm, geometry, trafficDensity,
       controls.enableDamping = true;
       controls.maxPolarAngle = Math.PI / 2.1;
 
-      scene.add(new THREE.AmbientLight(0xffffff, 0.85));
-      const sun = new THREE.DirectionalLight(0xffffff, 0.55);
-      sun.position.set(20, 40, 10);
+      scene.add(new THREE.HemisphereLight(0x3a537a, 0x14110d, 0.55));
+      const sun = new THREE.DirectionalLight(0xffb067, 1.15);
+      sun.position.set(-26, 18, 14);
       scene.add(sun);
+      const fill = new THREE.DirectionalLight(0x6fa8ff, 0.3);
+      fill.position.set(22, 14, -18);
+      scene.add(fill);
 
       // The curve: the segment's real alignment, projected to local metres, or a short straight
       // fallback. CatmullRomCurve3's *At methods are arc-length parameterised, so `t` in 0..1
@@ -141,9 +148,9 @@ export default function RoadScene3D({ elements, rowCm, geometry, trafficDensity,
         const c = document.createElement("canvas");
         c.width = c.height = size;
         const ctx = c.getContext("2d")!;
-        ctx.fillStyle = "#cfd8c2";
+        ctx.fillStyle = "#1c2b2a";
         ctx.fillRect(0, 0, size, size);
-        ctx.fillStyle = "rgba(0,0,0,0.05)";
+        ctx.fillStyle = "rgba(255,255,255,0.045)";
         ctx.fillRect(0, 0, size, 2);
         ctx.fillRect(0, 0, 2, size);
         const tex = new THREE.CanvasTexture(c);
@@ -283,10 +290,30 @@ export default function RoadScene3D({ elements, rowCm, geometry, trafficDensity,
           const { point, right, tangent } = frameAt(t);
           const bw = 5, bd = 6, bh = 6 + (i % 3) * 3;
           const base = point.clone().addScaledVector(right, side * (halfRow + 3 + bw / 2));
-          const mesh = new THREE.Mesh(new THREE.BoxGeometry(bw, bh, bd), new THREE.MeshStandardMaterial({ color: 0xb9c2cc }));
+          const shade = 0x323c4a + (i % 4) * 0x060504; // subtle per-building variation, not a flat wall of identical boxes
+          const mesh = new THREE.Mesh(new THREE.BoxGeometry(bw, bh, bd), new THREE.MeshStandardMaterial({ color: shade }));
           mesh.position.set(base.x, bh / 2, base.z);
           mesh.lookAt(base.x + tangent.x, bh / 2, base.z + tangent.z);
           scene.add(mesh);
+
+          // Lit windows — self-lit (MeshBasicMaterial), so they read as warm light at dusk
+          // regardless of the scene's directional lighting, big and frequent enough to actually
+          // read at this camera distance rather than disappear into a dark box. DoubleSide so
+          // they're visible from outside regardless of which way lookAt rotated the building.
+          if ((i + (side > 0 ? 1 : 0)) % 2 === 0) {
+            const winMat = new THREE.MeshBasicMaterial({ color: 0xffd98a, side: THREE.DoubleSide });
+            const floors = Math.max(1, Math.floor(bh / 2.5));
+            for (let fl = 0; fl < floors; fl++) {
+              const winY = -bh / 2 + 1.2 + fl * 2.3;
+              const front = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 1.3), winMat);
+              front.position.set(0, winY, -bd / 2 - 0.03);
+              mesh.add(front);
+              const sideFace = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 1.3), winMat);
+              sideFace.rotation.y = Math.PI / 2;
+              sideFace.position.set(-bw / 2 - 0.03, winY, 0);
+              mesh.add(sideFace);
+            }
+          }
         }
       }
 

@@ -1,0 +1,11 @@
+# Optional: real SUMO traffic microsimulation (modules/roads/design/simulate.py).
+# NOT part of requirements.txt on purpose -- eclipse-sumo bundles the actual SUMO binaries and is
+# a ~270MB download. Without this installed, /design falls back to the BPR sample-data estimate
+# (modules/roads/design/impact.py) automatically -- nothing else breaks.
+#
+# Install into the project venv (so the actual running server picks it up, not just a bare
+# `pip install`):
+#   .\.venv\Scripts\python.exe -m pip install -r backend\requirements-sumo.txt
+eclipse-sumo>=1.28
+traci>=1.28
+sumolib>=1.28

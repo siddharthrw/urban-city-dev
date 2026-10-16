@@ -41,4 +41,11 @@ describe("TrafficImpactPanel", () => {
     render(<TrafficImpactPanel impact={{ ...base, before: { ...base.before, lanes: 1 } }} />);
     expect(screen.getByText("Today (1 lane)")).toBeInTheDocument();
   });
+
+  it("badges a real SUMO simulation distinctly from the SAMPLE formula estimate", () => {
+    render(<TrafficImpactPanel impact={{ ...base, engine: "sumo", note: "Real SUMO microsimulation using a SAMPLE traffic volume." }} />);
+    expect(screen.getByText("SUMO simulation")).toBeInTheDocument();
+    expect(screen.queryByText("SAMPLE")).not.toBeInTheDocument();
+    expect(screen.getByText(/Simulated travel-time impact/)).toBeInTheDocument();
+  });
 });
