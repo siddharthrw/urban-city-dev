@@ -51,30 +51,28 @@ beforeEach(() => {
 });
 
 describe("RoadDashboard", () => {
-  it("loads the design and shows the road and option name in the header", async () => {
+  it("loads the design and shows the road and option name in the floating title", async () => {
     render(<RoadDashboard {...props} />);
     expect(screen.getByText("Loading…")).toBeInTheDocument();
-    expect(await screen.findByText("Street-level dashboard: North Usman Road — Traffic priority")).toBeInTheDocument();
+    expect(await screen.findByText("North Usman Road — Traffic priority")).toBeInTheDocument();
     expect(designApi.design).toHaveBeenCalledWith("chennai", "1-2-0", { context: [], row_m: 9.6 });
   });
 
   it("shows the metrics, the flow maps and the sample travel-time panel", async () => {
     render(<RoadDashboard {...props} />);
-    await screen.findByText(/Street-level dashboard/);
+    await screen.findByRole("region", { name: "Metrics" });
     expect(screen.getAllByTestId("road-flow-map")).toHaveLength(2);
     expect(screen.getByText("SAMPLE")).toBeInTheDocument();
     expect(screen.getByText(/SUMO/)).toBeInTheDocument();
     const metrics = within(screen.getByRole("region", { name: "Metrics" }));
-    expect(metrics.getByText("2")).toBeInTheDocument(); // lanes
+    expect(metrics.getByText("3 m")).toBeInTheDocument(); // lane width
   });
 
   it("shows a single street-level scene with a Today/option toggle, defaulting to Today", async () => {
     render(<RoadDashboard {...props} />);
-    await screen.findByText(/Street-level dashboard/);
+    await screen.findByRole("region", { name: "Metrics" });
     const detail = within(screen.getByRole("region", { name: "Street-level detail" }));
     await waitFor(() => expect(detail.getAllByTestId("road-scene-3d-unsupported")).toHaveLength(1));
-    const hero = within(screen.getByLabelText("Hero scene"));
-    expect(hero.getByText("Today")).toBeInTheDocument();
     expect(detail.getByRole("button", { name: "Today" })).toHaveAttribute("aria-pressed", "true");
     expect(detail.getByRole("button", { name: "Traffic priority" })).toHaveAttribute("aria-pressed", "false");
   });
@@ -82,19 +80,17 @@ describe("RoadDashboard", () => {
   it("switches the street-level scene to the option when its toggle button is clicked", async () => {
     const user = userEvent.setup();
     render(<RoadDashboard {...props} />);
-    await screen.findByText(/Street-level dashboard/);
+    await screen.findByRole("region", { name: "Metrics" });
     const detail = within(screen.getByRole("region", { name: "Street-level detail" }));
     await user.click(detail.getByRole("button", { name: "Traffic priority" }));
     await waitFor(() => expect(detail.getAllByTestId("road-scene-3d-unsupported")).toHaveLength(1));
-    const hero = within(screen.getByLabelText("Hero scene"));
-    expect(hero.getByText("Traffic priority")).toBeInTheDocument();
     expect(detail.getByRole("button", { name: "Traffic priority" })).toHaveAttribute("aria-pressed", "true");
   });
 
   it("goes back when the back link is clicked", async () => {
     const user = userEvent.setup();
     render(<RoadDashboard {...props} />);
-    await screen.findByText(/Street-level dashboard/);
+    await screen.findByRole("region", { name: "Metrics" });
     await user.click(screen.getByText("← Back to design"));
     expect(props.onBack).toHaveBeenCalled();
   });

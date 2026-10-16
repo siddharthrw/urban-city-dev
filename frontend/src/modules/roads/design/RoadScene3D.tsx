@@ -9,8 +9,10 @@ const MAX_CARS_PER_LANE = 5;
 const TREE_SPACING_M = 4;
 const BUILDING_SPACING_M = 10;
 const MAX_PEDESTRIANS_PER_FOOTPATH = 3;
-const STREETLIGHT_SPACING_M = 22; // real point lights add real per-pixel cost; spaced out to stay cheap
-const STREETLIGHT_SPAN_M = 170; // placed over a smaller window than buildings/trees — they matter most near the camera
+const STREETLIGHT_SPACING_M = 45; // real point lights add real per-pixel cost on every lit surface in
+                                   // range (the ground plane especially) -- this was the actual cause of
+                                   // orbit-drag lag at the previous (denser) spacing, not draw-call count
+const STREETLIGHT_SPAN_M = 130; // placed over a smaller window than buildings/trees — they matter most near the camera
 // Real-world speeds, not fractions of the curve — t-per-frame below is derived from these divided
 // by curveLength, so apparent motion looks the same whether the segment is 40 m or 600 m. Before
 // this, speed was a flat fraction of the *whole* curve per frame, so a long segment made cars and
@@ -56,6 +58,10 @@ type Props = {
    * it) — e.g. RoadDashboard's HUD readouts. Only shown once the scene is actually ready, so it
    * never sits on top of the loading/error placeholders. */
   hud?: ReactNode;
+  /** Skips the "{label}" caption under the canvas — for a fullscreen host that already shows the
+   * scenario name elsewhere (e.g. RoadDashboard's own top bar), where the caption would just be
+   * redundant text sitting over the scene. */
+  hideLabel?: boolean;
 };
 
 /** A 3D model of one cross-section swept along the segment's real curved alignment, with cars
@@ -65,7 +71,7 @@ type Props = {
  * notes this implements. */
 type Status = "loading" | "ready" | "unsupported" | "error";
 
-export default function RoadScene3D({ elements, rowCm, geometry, trafficDensity, label, hud }: Props) {
+export default function RoadScene3D({ elements, rowCm, geometry, trafficDensity, label, hud, hideLabel }: Props) {
   const container = useRef<HTMLDivElement>(null);
   const [status, setStatus] = useState<Status>("loading");
 
@@ -179,7 +185,7 @@ export default function RoadScene3D({ elements, rowCm, geometry, trafficDensity,
       groundTex.repeat.set(groundSize / 6, groundSize / 6);
       const ground = new THREE.Mesh(
         new THREE.PlaneGeometry(groundSize, groundSize),
-        new THREE.MeshStandardMaterial({ map: groundTex }),
+        new THREE.MeshLambertMaterial({ map: groundTex }),
       );
       ground.rotation.x = -Math.PI / 2;
       ground.position.set(mid.x, -0.02, mid.z);
@@ -230,7 +236,7 @@ export default function RoadScene3D({ elements, rowCm, geometry, trafficDensity,
         const color = e.kind === "lane" ? laneColor(trafficDensity) : (COLOR[e.kind] ?? 0x999999);
         const mesh = new THREE.Mesh(
           ribbon(x0, x1, HEIGHT_M[e.kind] ?? 0.02),
-          new THREE.MeshStandardMaterial({ color, side: THREE.DoubleSide }),
+          new THREE.MeshLambertMaterial({ color, side: THREE.DoubleSide }),
         );
         scene.add(mesh);
         if (e.kind === "lane") laneCentres.push((x0 + x1) / 2);
@@ -278,11 +284,11 @@ export default function RoadScene3D({ elements, rowCm, geometry, trafficDensity,
         const perStrip = Math.max(1, Math.round(curveLength / TREE_SPACING_M));
         const total = treeCentres.length * perStrip;
         const trunks = new THREE.InstancedMesh(
-          new THREE.CylinderGeometry(0.12, 0.17, 1.6), new THREE.MeshStandardMaterial({ color: 0x5a3a22 }), total);
+          new THREE.CylinderGeometry(0.12, 0.17, 1.6), new THREE.MeshLambertMaterial({ color: 0x5a3a22 }), total);
         const canopyLower = new THREE.InstancedMesh(
-          new THREE.ConeGeometry(1.0, 1.8, 8), new THREE.MeshStandardMaterial({ color: 0x2d6b32 }), total);
+          new THREE.ConeGeometry(1.0, 1.8, 8), new THREE.MeshLambertMaterial({ color: 0x2d6b32 }), total);
         const canopyUpper = new THREE.InstancedMesh(
-          new THREE.ConeGeometry(0.62, 1.3, 8), new THREE.MeshStandardMaterial({ color: 0x3c8a41 }), total);
+          new THREE.ConeGeometry(0.62, 1.3, 8), new THREE.MeshLambertMaterial({ color: 0x3c8a41 }), total);
         const m = new THREE.Matrix4();
         let idx = 0;
         treeCentres.forEach((xc) => {
@@ -313,7 +319,7 @@ export default function RoadScene3D({ elements, rowCm, geometry, trafficDensity,
           const bw = 5, bd = 6, bh = 6 + (i % 3) * 3;
           const base = point.clone().addScaledVector(right, side * (halfRow + 3 + bw / 2));
           const shade = 0x323c4a + (i % 4) * 0x060504; // subtle per-building variation, not a flat wall of identical boxes
-          const mesh = new THREE.Mesh(new THREE.BoxGeometry(bw, bh, bd), new THREE.MeshStandardMaterial({ color: shade }));
+          const mesh = new THREE.Mesh(new THREE.BoxGeometry(bw, bh, bd), new THREE.MeshLambertMaterial({ color: shade }));
           mesh.position.set(base.x, bh / 2, base.z);
           mesh.lookAt(base.x + tangent.x, bh / 2, base.z + tangent.z);
           scene.add(mesh);
@@ -339,6 +345,43 @@ export default function RoadScene3D({ elements, rowCm, geometry, trafficDensity,
         }
       }
 
+      // Background city context: a sparser, semi-transparent second layer of blocks further out,
+      // plus a couple of flat cross-street hints with a few faint blocks along them — "other
+      // roads can be seen in the background", without actually modelling a city grid. Cheap
+      // (transparent, unlit basic material, no windows) since it's purely background depth.
+      const farBuildingCount = Math.max(1, Math.round(buildingCount / 2));
+      const farMat = new THREE.MeshBasicMaterial({ color: 0x2a3142, transparent: true, opacity: 0.4 });
+      for (const side of [-1, 1]) {
+        for (let i = 0; i < farBuildingCount; i++) {
+          const t = tWinStart + windowFrac * ((i + 0.5) / farBuildingCount);
+          const { point, right, tangent } = frameAt(t);
+          const bw = 7, bd = 8, bh = 8 + (i % 4) * 4;
+          const base = point.clone().addScaledVector(right, side * (halfRow + 14 + bw / 2));
+          const mesh = new THREE.Mesh(new THREE.BoxGeometry(bw, bh, bd), farMat);
+          mesh.position.set(base.x, bh / 2, base.z);
+          mesh.lookAt(base.x + tangent.x, bh / 2, base.z + tangent.z);
+          scene.add(mesh);
+        }
+      }
+
+      const crossMat = new THREE.MeshBasicMaterial({ color: 0x3a3f46, transparent: true, opacity: 0.3 });
+      [0.22, 0.75].forEach((tc) => {
+        const { point, right } = frameAt(Math.min(0.97, Math.max(0.03, tc)));
+        const crossLen = 70;
+        const strip = new THREE.Mesh(new THREE.BoxGeometry(6, 0.03, crossLen), crossMat);
+        strip.position.set(point.x, 0.015, point.z);
+        strip.lookAt(point.x + right.x, 0.015, point.z + right.z);
+        scene!.add(strip);
+        // a couple of faint blocks flanking the cross street, for depth rather than a bare strip
+        [-24, 24].forEach((off) => {
+          const base = point.clone().addScaledVector(right, off);
+          const bh2 = 7;
+          const block = new THREE.Mesh(new THREE.BoxGeometry(6, bh2, 6), farMat);
+          block.position.set(base.x, bh2 / 2, base.z);
+          scene!.add(block);
+        });
+      });
+
       // Streetlights: illustrative placement (no real fixture dataset — same simplification as
       // the buildings/trees above), but real THREE.PointLights, which is the point: the dusk
       // scene above is intentionally dim, and these are what should light it back up near the
@@ -346,7 +389,7 @@ export default function RoadScene3D({ elements, rowCm, geometry, trafficDensity,
       // buildings/trees since each one adds real per-pixel lighting cost.
       const lightCount = Math.max(1, Math.round(Math.min(windowSpan, STREETLIGHT_SPAN_M) / STREETLIGHT_SPACING_M));
       const lightSpan = Math.min(windowFrac, STREETLIGHT_SPAN_M / curveLength);
-      const poleMat = new THREE.MeshStandardMaterial({ color: 0x24262b });
+      const poleMat = new THREE.MeshLambertMaterial({ color: 0x24262b });
       const lampGlowMat = new THREE.MeshBasicMaterial({ color: 0xffdf9e });
       for (const side of [-1, 1]) {
         for (let i = 0; i < lightCount; i++) {
@@ -394,11 +437,11 @@ export default function RoadScene3D({ elements, rowCm, geometry, trafficDensity,
       laneCentres.forEach((xc, li) => {
         for (let i = 0; i < carsPerLane; i++) {
           const color = CAR_COLORS[(li * 3 + i) % CAR_COLORS.length];
-          const mat = new THREE.MeshStandardMaterial({ color, metalness: 0.15, roughness: 0.5 });
+          const mat = new THREE.MeshLambertMaterial({ color });
           const group = new THREE.Group();
           const chassis = new THREE.Mesh(chassisGeo, mat);
           chassis.position.y = 0.3;
-          const cabin = new THREE.Mesh(cabinGeo, new THREE.MeshStandardMaterial({ color: 0x1b2430, metalness: 0.1, roughness: 0.4 }));
+          const cabin = new THREE.Mesh(cabinGeo, new THREE.MeshLambertMaterial({ color: 0x1b2430 }));
           cabin.position.set(0, 0.68, -0.3);
           group.add(chassis, cabin);
           scene!.add(group);
@@ -422,9 +465,9 @@ export default function RoadScene3D({ elements, rowCm, geometry, trafficDensity,
         for (let i = 0; i < MAX_PEDESTRIANS_PER_FOOTPATH; i++) {
           const color = PED_COLORS[(fi * 7 + i) % PED_COLORS.length];
           const group = new THREE.Group();
-          const body = new THREE.Mesh(pedBodyGeo, new THREE.MeshStandardMaterial({ color }));
+          const body = new THREE.Mesh(pedBodyGeo, new THREE.MeshLambertMaterial({ color }));
           body.position.y = 0.52;
-          const head = new THREE.Mesh(pedHeadGeo, new THREE.MeshStandardMaterial({ color: 0xe8c39e }));
+          const head = new THREE.Mesh(pedHeadGeo, new THREE.MeshLambertMaterial({ color: 0xe8c39e }));
           head.position.y = 1.05;
           group.add(body, head);
           scene!.add(group);
@@ -487,7 +530,7 @@ export default function RoadScene3D({ elements, rowCm, geometry, trafficDensity,
         const mat = mesh.material;
         const mats = Array.isArray(mat) ? mat : mat ? [mat] : [];
         mats.forEach((m) => {
-          (m as import("three").MeshStandardMaterial).map?.dispose?.();
+          (m as import("three").MeshLambertMaterial).map?.dispose?.();
           m.dispose();
         });
       });
@@ -498,10 +541,10 @@ export default function RoadScene3D({ elements, rowCm, geometry, trafficDensity,
   }, [elements, rowCm, trafficDensity, geometry]);
 
   return (
-    <div>
-      <div className="relative">
+    <div className="flex h-full w-full flex-col">
+      <div className="relative min-h-0 flex-1">
         {status !== "unsupported" && status !== "error" && (
-          <div ref={container} data-testid="road-scene-3d" className="h-64 w-full overflow-hidden rounded border border-slate-200" />
+          <div ref={container} data-testid="road-scene-3d" className="h-full w-full overflow-hidden rounded border border-slate-200" />
         )}
         {status === "loading" && (
           <div data-testid="road-scene-3d-loading"
@@ -511,19 +554,19 @@ export default function RoadScene3D({ elements, rowCm, geometry, trafficDensity,
         )}
         {status === "unsupported" && (
           <div data-testid="road-scene-3d-unsupported"
-            className="flex h-64 items-center justify-center rounded border border-slate-200 bg-slate-50 text-xs text-slate-500">
+            className="flex h-full items-center justify-center rounded border border-slate-200 bg-slate-50 text-xs text-slate-500">
             3D preview needs a browser with WebGL.
           </div>
         )}
         {status === "error" && (
           <div data-testid="road-scene-3d-error"
-            className="flex h-64 items-center justify-center rounded border border-slate-200 bg-slate-50 px-4 text-center text-xs text-slate-500">
+            className="flex h-full items-center justify-center rounded border border-slate-200 bg-slate-50 px-4 text-center text-xs text-slate-500">
             Couldn't build the 3D view for this road. Try "Today" / "This option" again, or reload the page.
           </div>
         )}
         {status === "ready" && hud}
       </div>
-      <p className="mt-1 text-center text-xs text-slate-500">{label}</p>
+      {!hideLabel && <p className="mt-1 shrink-0 text-center text-xs text-slate-500">{label}</p>}
     </div>
   );
 }
