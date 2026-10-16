@@ -17,8 +17,8 @@ const STREETLIGHT_SPAN_M = 130; // placed over a smaller window than buildings/t
 // by curveLength, so apparent motion looks the same whether the segment is 40 m or 600 m. Before
 // this, speed was a flat fraction of the *whole* curve per frame, so a long segment made cars and
 // especially pedestrians look like they were sprinting.
-const CAR_CRUISE_MPS = 9; // ~32 km/h, free-flowing urban traffic
-const CAR_CONGESTED_MPS = 2.2; // crawl, at trafficDensity 1
+const CAR_CRUISE_MPS = 13; // ~47 km/h, free-flowing urban traffic
+const CAR_CONGESTED_MPS = 3.2; // crawl, at trafficDensity 1
 const PED_SPEED_MPS = 1.3; // a brisk walk
 const ASSUMED_FPS = 60;
 
@@ -435,6 +435,9 @@ export default function RoadScene3D({ elements, rowCm, geometry, trafficDensity,
       const CAR_COLORS = [0xd1d5db, 0x2b2f36, 0xb91c1c, 0x1d4ed8, 0x4b5563, 0xf3f4f6];
       const cars: { mesh: InstanceType<typeof THREE.Group>; t: number; speed: number; xc: number }[] = [];
       laneCentres.forEach((xc, li) => {
+        // Adjacent lanes travel opposite directions, like real two-way traffic, instead of every
+        // car on the segment drifting the same way.
+        const dir = li % 2 === 0 ? 1 : -1;
         for (let i = 0; i < carsPerLane; i++) {
           const color = CAR_COLORS[(li * 3 + i) % CAR_COLORS.length];
           const mat = new THREE.MeshLambertMaterial({ color });
@@ -448,7 +451,7 @@ export default function RoadScene3D({ elements, rowCm, geometry, trafficDensity,
           cars.push({
             mesh: group, xc,
             t: (i / Math.max(carsPerLane, 1) + li * 0.37) % 1,
-            speed: carTPerFrame,
+            speed: dir * carTPerFrame,
           });
         }
       });
@@ -492,11 +495,12 @@ export default function RoadScene3D({ elements, rowCm, geometry, trafficDensity,
       const animate = () => {
         if (disposed || !renderer || !scene || !controls) return;
         cars.forEach((c) => {
-          c.t = (c.t + c.speed) % 1;
+          c.t = (c.t + c.speed + 1) % 1;
           const { point, right, tangent } = frameAt(c.t);
+          const dir = c.speed >= 0 ? tangent : tangent.clone().multiplyScalar(-1);
           const pos = point.clone().addScaledVector(right, c.xc);
           c.mesh.position.set(pos.x, 0.6, pos.z);
-          c.mesh.lookAt(pos.x + tangent.x, 0.6, pos.z + tangent.z);
+          c.mesh.lookAt(pos.x + dir.x, 0.6, pos.z + dir.z);
         });
         pedestrians.forEach((p) => {
           p.t = (p.t + p.speed + 1) % 1;
