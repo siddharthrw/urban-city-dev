@@ -9,6 +9,14 @@ const MAX_CARS_PER_LANE = 5;
 const TREE_SPACING_M = 4;
 const BUILDING_SPACING_M = 10;
 const MAX_PEDESTRIANS_PER_FOOTPATH = 3;
+// Real-world speeds, not fractions of the curve — t-per-frame below is derived from these divided
+// by curveLength, so apparent motion looks the same whether the segment is 40 m or 600 m. Before
+// this, speed was a flat fraction of the *whole* curve per frame, so a long segment made cars and
+// especially pedestrians look like they were sprinting.
+const CAR_CRUISE_MPS = 9; // ~32 km/h, free-flowing urban traffic
+const CAR_CONGESTED_MPS = 2.2; // crawl, at trafficDensity 1
+const PED_SPEED_MPS = 1.3; // a brisk walk
+const ASSUMED_FPS = 60;
 
 const COLOR: Record<DesignElement["kind"], number> = {
   footpath: 0xd6ccb8,
@@ -24,9 +32,11 @@ const HEIGHT_M: Record<DesignElement["kind"], number> = {
   lane: 0.02, cycle_track: 0.02, bus_bay: 0.02, carriageway: 0.02,
 };
 
+/** Asphalt gray tinted toward congestion-red, capped well short of full saturation — this still
+ * needs to read as a road surface, not a solid block of paint. */
 function laneColor(trafficDensity: number | null | undefined): number {
-  const t = Math.max(0, Math.min(1, trafficDensity ?? 0));
-  const base = { r: 0x4b, g: 0x4f, b: 0x54 }, crit = { r: 0xc0, g: 0x39, b: 0x2b };
+  const t = Math.min(0.55, Math.max(0, trafficDensity ?? 0));
+  const base = { r: 0x3c, g: 0x3f, b: 0x43 }, crit = { r: 0x8a, g: 0x3b, b: 0x33 };
   const r = Math.round(base.r + (crit.r - base.r) * t);
   const g = Math.round(base.g + (crit.g - base.g) * t);
   const b = Math.round(base.b + (crit.b - base.b) * t);
@@ -231,8 +241,8 @@ export default function RoadScene3D({ elements, rowCm, geometry, trafficDensity,
         const dashLen = 3, gapLen = 2.5, cycle = dashLen + gapLen;
         const dashesPerLine = Math.max(1, Math.floor(windowSpan / cycle));
         const dashMesh = new THREE.InstancedMesh(
-          new THREE.BoxGeometry(0.14, 0.01, dashLen),
-          new THREE.MeshStandardMaterial({ color: 0xf2ead8 }),
+          new THREE.BoxGeometry(0.2, 0.015, dashLen),
+          new THREE.MeshBasicMaterial({ color: 0xfafaf0 }), // self-lit so it reads clearly against the road even at dusk
           laneDividers.length * dashesPerLine,
         );
         const m = new THREE.Matrix4();
@@ -255,28 +265,34 @@ export default function RoadScene3D({ elements, rowCm, geometry, trafficDensity,
       }
 
       // Trees: instanced (one draw call per part regardless of count) along each tree_strip,
-      // spaced roughly every TREE_SPACING_M along the curve's real length.
+      // spaced roughly every TREE_SPACING_M along the curve's real length. Two stacked canopy
+      // cones (not one squat cone) for a fuller, more tree-like silhouette at a height that
+      // actually reads next to 6-15 m buildings instead of looking like a shrub.
       if (treeCentres.length) {
         const perStrip = Math.max(1, Math.round(curveLength / TREE_SPACING_M));
         const total = treeCentres.length * perStrip;
         const trunks = new THREE.InstancedMesh(
-          new THREE.CylinderGeometry(0.08, 0.1, 0.8), new THREE.MeshStandardMaterial({ color: 0x6b4423 }), total);
-        const canopies = new THREE.InstancedMesh(
-          new THREE.ConeGeometry(0.6, 1.2, 8), new THREE.MeshStandardMaterial({ color: 0x2e7d32 }), total);
+          new THREE.CylinderGeometry(0.12, 0.17, 1.6), new THREE.MeshStandardMaterial({ color: 0x5a3a22 }), total);
+        const canopyLower = new THREE.InstancedMesh(
+          new THREE.ConeGeometry(1.0, 1.8, 8), new THREE.MeshStandardMaterial({ color: 0x2d6b32 }), total);
+        const canopyUpper = new THREE.InstancedMesh(
+          new THREE.ConeGeometry(0.62, 1.3, 8), new THREE.MeshStandardMaterial({ color: 0x3c8a41 }), total);
         const m = new THREE.Matrix4();
         let idx = 0;
         treeCentres.forEach((xc) => {
           for (let i = 0; i < perStrip; i++) {
             const { point, right } = frameAt((i + 0.5) / perStrip);
             const base = point.clone().addScaledVector(right, xc);
-            m.makeTranslation(base.x, base.y + 0.4, base.z); trunks.setMatrixAt(idx, m);
-            m.makeTranslation(base.x, base.y + 1.1, base.z); canopies.setMatrixAt(idx, m);
+            m.makeTranslation(base.x, base.y + 0.8, base.z); trunks.setMatrixAt(idx, m);
+            m.makeTranslation(base.x, base.y + 2.3, base.z); canopyLower.setMatrixAt(idx, m);
+            m.makeTranslation(base.x, base.y + 3.1, base.z); canopyUpper.setMatrixAt(idx, m);
             idx++;
           }
         });
         trunks.instanceMatrix.needsUpdate = true;
-        canopies.instanceMatrix.needsUpdate = true;
-        scene.add(trunks, canopies);
+        canopyLower.instanceMatrix.needsUpdate = true;
+        canopyUpper.instanceMatrix.needsUpdate = true;
+        scene.add(trunks, canopyLower, canopyUpper);
       }
 
       // Buildings: schematic context blocks beyond the row on each side, following the curve —
@@ -318,19 +334,32 @@ export default function RoadScene3D({ elements, rowCm, geometry, trafficDensity,
       }
 
       // Driving cars: animated along the curve's arc length each frame, oriented to the tangent —
-      // a visual hint of congestion (count and speed from trafficDensity), not a simulation.
+      // a visual hint of congestion (count and speed from trafficDensity), not a simulation. Each
+      // is a chassis + cabin pair (not one flat box) with a few common car colours, so they read
+      // as cars rather than coloured bricks.
       const density = Math.max(0, Math.min(1, trafficDensity ?? 0));
       const carsPerLane = Math.round(density * MAX_CARS_PER_LANE);
-      const carGeo = new THREE.BoxGeometry(1.7, 1.2, 3.6);
-      const cars: { mesh: InstanceType<typeof THREE.Mesh>; t: number; speed: number; xc: number }[] = [];
+      const carSpeedMps = CAR_CRUISE_MPS - density * (CAR_CRUISE_MPS - CAR_CONGESTED_MPS);
+      const carTPerFrame = carSpeedMps / ASSUMED_FPS / curveLength;
+      const chassisGeo = new THREE.BoxGeometry(1.8, 0.55, 4.0);
+      const cabinGeo = new THREE.BoxGeometry(1.5, 0.5, 2.0);
+      const CAR_COLORS = [0xd1d5db, 0x2b2f36, 0xb91c1c, 0x1d4ed8, 0x4b5563, 0xf3f4f6];
+      const cars: { mesh: InstanceType<typeof THREE.Group>; t: number; speed: number; xc: number }[] = [];
       laneCentres.forEach((xc, li) => {
         for (let i = 0; i < carsPerLane; i++) {
-          const mesh = new THREE.Mesh(carGeo, new THREE.MeshStandardMaterial({ color: 0xc0392b }));
-          scene!.add(mesh);
+          const color = CAR_COLORS[(li * 3 + i) % CAR_COLORS.length];
+          const mat = new THREE.MeshStandardMaterial({ color, metalness: 0.15, roughness: 0.5 });
+          const group = new THREE.Group();
+          const chassis = new THREE.Mesh(chassisGeo, mat);
+          chassis.position.y = 0.3;
+          const cabin = new THREE.Mesh(cabinGeo, new THREE.MeshStandardMaterial({ color: 0x1b2430, metalness: 0.1, roughness: 0.4 }));
+          cabin.position.set(0, 0.68, -0.3);
+          group.add(chassis, cabin);
+          scene!.add(group);
           cars.push({
-            mesh, xc,
+            mesh: group, xc,
             t: (i / Math.max(carsPerLane, 1) + li * 0.37) % 1,
-            speed: 0.0026 - density * 0.0018,
+            speed: carTPerFrame,
           });
         }
       });
@@ -341,6 +370,7 @@ export default function RoadScene3D({ elements, rowCm, geometry, trafficDensity,
       const PED_COLORS = [0x3b5bdb, 0xd9480f, 0x2b8a3e, 0x862e9c, 0x1098ad];
       const pedBodyGeo = new THREE.BoxGeometry(0.32, 0.85, 0.2);
       const pedHeadGeo = new THREE.SphereGeometry(0.15, 8, 8);
+      const pedTPerFrame = PED_SPEED_MPS / ASSUMED_FPS / curveLength;
       const pedestrians: { mesh: InstanceType<typeof THREE.Group>; t: number; speed: number; xc: number }[] = [];
       footpathCentres.forEach((xc, fi) => {
         for (let i = 0; i < MAX_PEDESTRIANS_PER_FOOTPATH; i++) {
@@ -355,7 +385,7 @@ export default function RoadScene3D({ elements, rowCm, geometry, trafficDensity,
           pedestrians.push({
             mesh: group, xc,
             t: (i / MAX_PEDESTRIANS_PER_FOOTPATH + fi * 0.5) % 1,
-            speed: (i % 2 === 0 ? 1 : -1) * (0.0006 + (i / MAX_PEDESTRIANS_PER_FOOTPATH) * 0.0003),
+            speed: (i % 2 === 0 ? 1 : -1) * pedTPerFrame * (0.85 + (i / MAX_PEDESTRIANS_PER_FOOTPATH) * 0.3),
           });
         }
       });
