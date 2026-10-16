@@ -13,11 +13,13 @@ import { CONFIDENCE, MEASURED_CONFIDENCE, type WidthConfidence, type WidthSource
 import { roadsApi, type SearchHit, type SegmentResponse } from "./modules/roads/api";
 import { addRoadsLayer, highlight, keepClearOfPanel, roadAt, setRoadsVisible } from "./modules/roads/roadsLayer";
 import DesignPanel from "./modules/roads/design/DesignPanel";
+import RoadDashboard from "./modules/roads/design/RoadDashboard";
+import type { DetailTarget } from "./modules/roads/design/api";
 import RoadPanel from "./modules/roads/RoadPanel";
 import RoadSearch from "./modules/roads/RoadSearch";
 
 type Bbox = [number, number, number, number];
-type Page = "map" | "inbox" | "rules";
+type Page = "map" | "inbox" | "rules" | "road-dashboard";
 
 export default function App() {
   const [page, setPage] = useState<Page>("map");
@@ -40,6 +42,7 @@ export default function App() {
   const [feature, setFeature] = useState<ImportedHit | null>(null);
   const [dataVersion, setDataVersion] = useState(0);
   const [designing, setDesigning] = useState(false);
+  const [dashboardTarget, setDashboardTarget] = useState<DetailTarget | null>(null);
 
   const city = cities[0];
   const layersRef = useRef(layers);
@@ -178,6 +181,11 @@ export default function App() {
 
   const featureLayer = feature ? layers.find((l) => l.layer_id === feature.layerId) : undefined;
 
+  const openDetail = useCallback((target: DetailTarget) => {
+    setDashboardTarget(target);
+    setPage("road-dashboard");
+  }, []);
+
   return (
     <div className="flex h-full flex-col font-sans text-slate-800">
       <nav className="flex items-center gap-1 border-b border-slate-200 bg-white px-4">
@@ -248,7 +256,8 @@ export default function App() {
             {segId && designing && seg && city && (
               <DesignPanel cityId={city.city_id} segId={segId} roadWidthM={seg.segment.width_m}
                 roadWidthSource={seg.segment.width_source} onBack={() => setDesigning(false)}
-                onClose={() => { setDesigning(false); setSegId(null); setPickedRoad(null); }} />
+                onClose={() => { setDesigning(false); setSegId(null); setPickedRoad(null); }}
+                onOpenDetail={openDetail} />
             )}
             {segId && !designing && (
               <RoadPanel data={seg} loading={segLoading} error={segError} clickLngLat={clickLngLat}
@@ -279,6 +288,9 @@ export default function App() {
             onDataChanged={() => setDataVersion((v) => v + 1)} onShowOnMap={showOnMap} />
         )}
         {page === "rules" && <RulesPage />}
+        {page === "road-dashboard" && dashboardTarget && (
+          <RoadDashboard {...dashboardTarget} onBack={() => setPage("map")} />
+        )}
       </div>
     </div>
   );

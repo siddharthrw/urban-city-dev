@@ -2,9 +2,9 @@ import { useCallback, useEffect, useState } from "react";
 import SourceBadge from "../../../core/rules/SourceBadge";
 import { CONFIDENCE } from "../../../core/provenance";
 import CrossSection from "./CrossSection";
-import RoadScene3D from "./RoadScene3D";
+import RoadFlowMap from "./RoadFlowMap";
 import TrafficImpactPanel from "./TrafficImpactPanel";
-import { CONTEXT_FLAGS, designApi, type DesignOption, type DesignResult, type NearbyFeature } from "./api";
+import { CONTEXT_FLAGS, designApi, type DesignOption, type DesignResult, type DetailTarget, type NearbyFeature } from "./api";
 
 const CONFIDENCE_KEY = (s: string): keyof typeof CONFIDENCE =>
   s in CONFIDENCE ? (s as keyof typeof CONFIDENCE) : "estimated";
@@ -27,9 +27,10 @@ type Props = {
   roadWidthSource: keyof typeof CONFIDENCE;
   onBack: () => void;
   onClose: () => void;
+  onOpenDetail: (target: DetailTarget) => void;
 };
 
-export default function DesignPanel({ cityId, segId, roadWidthM, roadWidthSource, onBack, onClose }: Props) {
+export default function DesignPanel({ cityId, segId, roadWidthM, roadWidthSource, onBack, onClose, onOpenDetail }: Props) {
   const [context, setContext] = useState<string[]>([]);
   const [width, setWidth] = useState(String(roadWidthM));
   const [result, setResult] = useState<DesignResult | null>(null);
@@ -213,7 +214,7 @@ export default function DesignPanel({ cityId, segId, roadWidthM, roadWidthSource
 
             {result.options.map((o) => (
               <OptionCard key={o.option_id} option={o} result={result}
-                cityId={cityId} segId={segId} context={context} width={width} />
+                cityId={cityId} segId={segId} context={context} width={width} onOpenDetail={onOpenDetail} />
             ))}
 
             {result.dropped.length > 0 && (
@@ -236,16 +237,16 @@ export default function DesignPanel({ cityId, segId, roadWidthM, roadWidthSource
   );
 }
 
-function OptionCard({ option: o, result, cityId, segId, context, width }: {
+function OptionCard({ option: o, result, cityId, segId, context, width, onOpenDetail }: {
   option: DesignOption;
   result: DesignResult;
   cityId: string;
   segId: string;
   context: string[];
   width: string;
+  onOpenDetail: (target: DetailTarget) => void;
 }) {
   const m = o.metrics;
-  const [show3d, setShow3d] = useState(false);
   const [explanation, setExplanation] = useState<string | null>(null);
   const [explaining, setExplaining] = useState(false);
   const [explainError, setExplainError] = useState<string | null>(null);
@@ -279,24 +280,20 @@ function OptionCard({ option: o, result, cityId, segId, context, width }: {
       <p className="mb-2 text-xs text-slate-600">{o.summary}</p>
       <CrossSection elements={o.elements} rowCm={result.row_cm} title={o.name} />
 
-      <details className="mt-2 text-xs" onToggle={(e) => setShow3d(e.currentTarget.open)}>
-        <summary className="cursor-pointer font-medium text-slate-700">3D view &amp; travel-time estimate (sample)</summary>
-        {show3d && (
-          <>
-            {/* Mounted only while open: each scene holds its own WebGL context, and a browser
-                allows few of those at once — see RoadScene3D. */}
-            <div className="mt-2 grid gap-3 sm:grid-cols-2">
-              <RoadScene3D elements={result.current.elements} rowCm={result.row_cm}
-                trafficDensity={o.impact.before.vc_ratio} label="Today" />
-              <RoadScene3D elements={o.elements} rowCm={result.row_cm}
-                trafficDensity={o.impact.after.vc_ratio} label="This option" />
-            </div>
-            <div className="mt-2">
-              <TrafficImpactPanel impact={o.impact} />
-            </div>
-          </>
-        )}
-      </details>
+      <div className="mt-2 grid gap-3 sm:grid-cols-2">
+        <RoadFlowMap geometry={result.segment.geometry} vcRatio={o.impact.before.vc_ratio} label="Today" />
+        <RoadFlowMap geometry={result.segment.geometry} vcRatio={o.impact.after.vc_ratio} label="This option" />
+      </div>
+      <div className="mt-2">
+        <TrafficImpactPanel impact={o.impact} />
+      </div>
+      <button
+        onClick={() => onOpenDetail({ cityId, segId, optionId: o.option_id, context, rowM: Number(width) })}
+        aria-label={`Open street-level dashboard for ${o.name}`}
+        className="mt-2 flex w-full items-center justify-between rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700 hover:bg-slate-100">
+        <span>🧭 Street-level detail (3D)</span>
+        <span className="text-slate-400">Open dashboard →</span>
+      </button>
 
       <dl className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-xs">
         <Metric label="Lanes" value={String(m.lanes)} />

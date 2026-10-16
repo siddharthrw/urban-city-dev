@@ -75,8 +75,14 @@ export type DesignResult = {
   dropped: { option_id: string; name: string; reason: string }[];
   warnings: string[];
   rules: Record<string, { statement: string; authority: "primary" | "expert" | "placeholder" | "superseded"; source: string; quote: string | null; page: number | null }>;
-  segment: { seg_id: string; name: string | null; road_width_m: number; road_width_source: string };
+  segment: {
+    seg_id: string; name: string | null; road_width_m: number; road_width_source: string;
+    geometry: { type: "LineString"; coordinates: [number, number][] } | null;
+  };
 };
+
+/** What the road-dashboard page needs to re-run the design and show one option's detail. */
+export type DetailTarget = { cityId: string; segId: string; optionId: string; context: string[]; rowM: number };
 
 export const CONTEXT_FLAGS: { id: string; label: string }[] = [
   { id: "school_nearby", label: "School nearby" },

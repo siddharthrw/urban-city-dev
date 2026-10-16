@@ -227,7 +227,7 @@ def design_segment(city_id: str, seg_id: str, body: DesignBody = DesignBody()):
                            context=merged_context, demand=demand,
                            rules=rules, width_source=source, cfg=cfg)
     result["segment"] = {"seg_id": seg_id, "name": seg.get("display_name"), "road_width_m": seg["width_m"],
-                         "road_width_source": seg["width_source"]}
+                         "road_width_source": seg["width_source"], "geometry": seg.get("geometry")}
     result["nearby"] = detected
     result["auto_context"] = sorted(auto_flags)
     result["two_wheeler_pct"] = demand.two_wheeler_pct
@@ -275,7 +275,7 @@ def _design_for(city_id: str, seg_id: str, context: list[str], row_m_override: f
                            context=merged_context, demand=demand,
                            rules=rules, width_source=source, cfg=cfg)
     result["segment"] = {"seg_id": seg_id, "name": seg.get("display_name"), "road_width_m": seg["width_m"],
-                         "road_width_source": seg["width_source"]}
+                         "road_width_source": seg["width_source"], "geometry": seg.get("geometry")}
     result["nearby"] = detected
     result["auto_context"] = sorted(auto_flags)
     result["two_wheeler_pct"] = demand.two_wheeler_pct

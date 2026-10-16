@@ -45,10 +45,16 @@ const RESULT: DesignResult = {
   dropped: [{ option_id: "balanced", name: "Balanced (cycle track + shade)", reason: "Needs at least 16 m, but the road is 9.6 m." }],
   warnings: ["The road width is an ESTIMATE (a typical width).", "Dimensions come from PLACEHOLDER rules (UNCITED guesses)."],
   rules: { footpath_min_width: { statement: "UNCITED placeholder: footpaths at least 1.8 m.", authority: "placeholder", source: "Placeholder (uncited)", quote: null, page: null } },
-  segment: { seg_id: "1-2-0", name: "North Usman Road", road_width_m: 9.6, road_width_source: "estimated" },
+  segment: {
+    seg_id: "1-2-0", name: "North Usman Road", road_width_m: 9.6, road_width_source: "estimated",
+    geometry: { type: "LineString", coordinates: [[80.2345, 13.045], [80.236, 13.046]] },
+  },
 };
 
-const props = { cityId: "chennai", segId: "1-2-0", roadWidthM: 9.6, roadWidthSource: "estimated" as const, onBack: vi.fn(), onClose: vi.fn() };
+const props = {
+  cityId: "chennai", segId: "1-2-0", roadWidthM: 9.6, roadWidthSource: "estimated" as const,
+  onBack: vi.fn(), onClose: vi.fn(), onOpenDetail: vi.fn(),
+};
 
 beforeEach(() => {
   vi.mocked(designApi.design).mockReset().mockResolvedValue(RESULT);
@@ -57,6 +63,7 @@ beforeEach(() => {
   vi.mocked(designApi.downloadPdf).mockReset();
   props.onBack.mockReset();
   props.onClose.mockReset();
+  props.onOpenDetail.mockReset();
 });
 
 describe("DesignPanel", () => {
@@ -104,17 +111,24 @@ describe("DesignPanel", () => {
     expect(within(card).getByText("1.8 m each side")).toBeInTheDocument();
   });
 
-  it("shows a labelled sample travel-time estimate and 3D views once expanded", async () => {
+  it("shows the flow map and a labelled sample travel-time estimate without needing a click", async () => {
+    render(<DesignPanel {...props} />);
+    const card = await screen.findByRole("region", { name: "Traffic priority" });
+    expect(within(card).getAllByTestId("road-flow-map")).toHaveLength(2);
+    expect(within(card).getByText("Today")).toBeInTheDocument();
+    expect(within(card).getByText("This option")).toBeInTheDocument();
+    expect(within(card).getByText("SAMPLE")).toBeInTheDocument();
+    expect(within(card).getByText(/SUMO/)).toBeInTheDocument();
+  });
+
+  it("opens the street-level dashboard for the option that was clicked", async () => {
     const user = userEvent.setup();
     render(<DesignPanel {...props} />);
     const card = await screen.findByRole("region", { name: "Traffic priority" });
-    await user.click(within(card).getByText(/3D view & travel-time estimate/));
-    expect(within(card).getByText("SAMPLE")).toBeInTheDocument();
-    expect(within(card).getByText(/SUMO/)).toBeInTheDocument();
-    expect(within(card).getByText("Today")).toBeInTheDocument();
-    expect(within(card).getByText("This option")).toBeInTheDocument();
-    // jsdom has no WebGL: both scenes fall back to the "needs WebGL" message rather than crashing
-    expect(within(card).getAllByTestId("road-scene-3d-unsupported")).toHaveLength(2);
+    await user.click(within(card).getByRole("button", { name: "Open street-level dashboard for Traffic priority" }));
+    expect(props.onOpenDetail).toHaveBeenCalledWith({
+      cityId: "chennai", segId: "1-2-0", optionId: "traffic", context: [], rowM: 9.6,
+    });
   });
 
   it("lists the rules applied with their statement and an uncited badge", async () => {

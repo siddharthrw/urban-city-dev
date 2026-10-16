@@ -269,6 +269,44 @@ real traffic simulation.
 
 ---
 
+## M18 — Flow Map + street-level dashboard ✅
+
+**Goal:** Replace M17's flat, straight-line 3D block (feedback: "looks like a downgrade version of
+Minecraft") with something that reads as a live simulation — the road's real curve, colour as
+congestion, motion — without the cost of a full curved 3D rebuild (that's M17's option 2, parked:
+`docs/plan_live_3d_corridor.md`).
+
+**What was built:**
+- `backend/modules/roads/module.py`: `result["segment"]` on the design endpoint and
+  `/design/explain*` now includes `geometry` (the segment's GeoJSON LineString) — already present
+  on every feature row via `layers.get_feature`, just not threaded through before.
+- `frontend/src/modules/roads/design/RoadFlowMap.tsx`: a top-down, to-scale flow map on a plain
+  2D canvas (no WebGL, no context-budget concerns). Projects the segment's lon/lat to local
+  metres with a flat-earth approximation (good at segment scale), colours the road green→amber→red
+  from `impact.*.vc_ratio`, and animates dots along it at a speed/spacing tied to that same number.
+  Falls back to a message, not a crash, when geometry is missing or too short.
+- `DesignPanel.tsx`: each option card now shows a Today/This-option Flow Map pair as its default,
+  always-visible view (no click needed) — replacing the old collapsed `<details>` 3D section.
+- The 3D block view (`RoadScene3D.tsx`, unchanged) moved off the card entirely: a
+  "🧭 Street-level detail (3D) → Open dashboard" button navigates to a **new page**,
+  `RoadDashboard.tsx`, reached via a new `Page` value (`"road-dashboard"`) in `App.tsx` — no router
+  library added; same simple state-driven page switch the app already uses for Inbox/Rules.
+  The dashboard re-runs `/design` itself from a small `DetailTarget` (cityId/segId/optionId/
+  context/rowM), so it's never stale relative to the card that linked to it, and shows the 3D
+  scenes, Flow Map, cross-sections, metrics and the `TrafficImpactPanel` together.
+
+**Key decisions:**
+- No backend geometry-projection work: the same flat-earth approximation RoadScene3D already used
+  for a 40 m stretch is reused for the (longer, curved) segment path. `docs/plan_live_3d_corridor.md`
+  documents when that stops being good enough and what replaces it.
+- The dashboard re-fetches rather than receiving the full `DesignResult` via navigation state, so a
+  reload or a direct link behaves the same as clicking through — one source of truth
+  (`designApi.design`), not two copies of the same data drifting apart.
+- `RoadScene3D.tsx` is untouched: M17's WebGL-context fix and its tests still apply unchanged, just
+  relocated.
+
+---
+
 ## Guiding principles (all milestones)
 
 1. The LLM never does geometry or arithmetic — the deterministic engine does.

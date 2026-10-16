@@ -29,6 +29,14 @@ def test_design_includes_the_current_road_for_a_before_after_comparison(client):
     assert current["note"]
 
 
+def test_design_includes_the_segment_geometry_for_the_flow_map(client):
+    res = design(client, "1-2-0").json()
+    geom = res["segment"]["geometry"]
+    assert geom["type"] == "LineString"
+    assert len(geom["coordinates"]) >= 2
+    assert all(len(pt) == 2 for pt in geom["coordinates"])
+
+
 def test_each_option_has_a_sample_traffic_impact_estimate(client):
     res = design(client, "1-2-0").json()
     for o in res["options"]:
