@@ -1,7 +1,7 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { designApi, type DesignElement, type DesignOption, type DesignResult } from "./api";
+import { designApi, type DesignElement, type DesignOption, type DesignResult, type TrafficImpact } from "./api";
 import DesignPanel from "./DesignPanel";
 
 vi.mock("./api", async (orig) => ({
@@ -13,13 +13,23 @@ const e = (kind: DesignElement["kind"], cm: number, side: DesignElement["side"] 
   kind, label: kind, side, width_cm: cm, width_m: cm / 100, rule_ids: ["footpath_min_width"], fallback_minimum: false,
 });
 
+const IMPACT: TrafficImpact = {
+  sample_data: true,
+  note: "Modelled estimate using a SAMPLE traffic volume and a standard congestion curve (BPR), not a real traffic count or a traffic simulation (SUMO).",
+  sample_pcu: 900, sample_pcu_detail: "Sample demand: assumed 75% of a typical secondary road's capacity. SAMPLE DATA — not a real traffic count.",
+  length_m: 500,
+  before: { lanes: 4, vc_ratio: 0.38, free_flow_kmh: 35, minutes: 1.1 },
+  after: { lanes: 2, vc_ratio: 0.75, free_flow_kmh: 35, minutes: 1.3 },
+  change_pct: 18.2,
+};
+
 const OPTION: DesignOption = {
   option_id: "traffic", name: "Traffic priority", summary: "As many lanes as fit.",
   elements: [e("footpath", 180), e("lane", 300), e("lane", 300), e("footpath", 180, "right")],
   omitted: [{ kind: "median", reason: "Median left out so the option fits in 12 m." }],
   notes: ["Lanes reduced from 4 to 2 so the option fits."],
   metrics: { lanes: 2, carriageway_m: 6, lane_width_m: 3, footpath_m: 1.8, has_cycle_track: false, has_trees: false, has_bus_bay: false, has_median: false },
-  rule_ids: ["footpath_min_width"], total_cm: 960, uses_fallback_minimums: false,
+  rule_ids: ["footpath_min_width"], total_cm: 960, uses_fallback_minimums: false, impact: IMPACT,
 };
 
 const RESULT: DesignResult = {
@@ -92,6 +102,19 @@ describe("DesignPanel", () => {
     expect(within(card).getByText(/Lanes reduced from 4 to 2/)).toBeInTheDocument();
     expect(within(card).getByText(/Median left out/)).toBeInTheDocument();
     expect(within(card).getByText("1.8 m each side")).toBeInTheDocument();
+  });
+
+  it("shows a labelled sample travel-time estimate and 3D views once expanded", async () => {
+    const user = userEvent.setup();
+    render(<DesignPanel {...props} />);
+    const card = await screen.findByRole("region", { name: "Traffic priority" });
+    await user.click(within(card).getByText(/3D view & travel-time estimate/));
+    expect(within(card).getByText("SAMPLE")).toBeInTheDocument();
+    expect(within(card).getByText(/SUMO/)).toBeInTheDocument();
+    expect(within(card).getByText("Today")).toBeInTheDocument();
+    expect(within(card).getByText("This option")).toBeInTheDocument();
+    // jsdom has no WebGL: both scenes fall back to the "needs WebGL" message rather than crashing
+    expect(within(card).getAllByTestId("road-scene-3d-unsupported")).toHaveLength(2);
   });
 
   it("lists the rules applied with their statement and an uncited badge", async () => {

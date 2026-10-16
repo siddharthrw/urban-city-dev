@@ -133,3 +133,13 @@ options:
     soft_max_m: { footpath: 3.5, cycle_track: 3.0 }
     sinks: [footpath, cycle_track]
     element_labels: { cycle_track: "2W lane", bus_bay: "Auto bay" }
+
+# ---- sample traffic-impact estimate (M17, not a simulation) ------------------------------------
+# Before/after travel-time illustration for the 3D view. There is no SUMO run and no real traffic
+# count behind these numbers: free-flow speeds and demand volume are assumed. Replace the demand
+# side with real linked counts, and the whole module with an actual simulation, later — see
+# docs/PARKED.md. Everything computed from these settings is labelled sample_data: true.
+free_flow_kmh: { motorway: 60, trunk: 50, primary: 40, secondary: 35, tertiary: 30, unclassified: 25, residential: 25, living_street: 15 }
+bpr_alpha: 0.15
+bpr_beta: 4.0
+sample_demand_load_factor: 0.75

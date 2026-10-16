@@ -8,6 +8,16 @@ Ideas and known gaps we are deliberately not doing yet.
 - Modules after Roads: trees & shade, flooding/sponge parks, buses & parking, public spaces/schools/housing,
   master plan & tenders.
 
+## Traffic-impact estimate (M17, known gaps)
+- **Real traffic simulation (SUMO).** The before/after travel-time estimate in `design/impact.py`
+  is a BPR congestion-curve calculation over an assumed SAMPLE demand volume, not a simulation.
+  Replacing it with an actual SUMO run needs real demand data (counts or an OD matrix) per road,
+  which the project mostly doesn't have yet (`demand.py` is UNCITED-default-driven for most roads).
+- **"Before" lane count is inferred, not surveyed.** `impact._infer_current_lanes` guesses today's
+  lane count from the current carriageway's notional width — same gap as `engine.current_state`.
+- **No network effects.** The estimate is per-segment only: it does not account for traffic
+  diverting to or from neighbouring roads when a lane is removed/added.
+
 ## Technical
 - **Offline basemap.** The basemap comes from OpenFreeMap over the internet. A self-hosted Chennai
   basemap extract (PMTiles) would make the app fully offline.

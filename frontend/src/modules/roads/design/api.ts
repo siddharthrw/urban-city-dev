@@ -32,9 +32,23 @@ export type DesignOption = {
   rule_ids: string[];
   total_cm: number;
   uses_fallback_minimums: boolean;
+  impact: TrafficImpact;
 };
 
 export type DesignInput = { name: string; value: string; source: string; detail: string };
+
+/** Before/after travel-time estimate (M17). sample_data is always true: there is no SUMO run and
+ * no real traffic count behind these numbers — see the backend module's docstring. */
+export type TrafficImpact = {
+  sample_data: true;
+  note: string;
+  sample_pcu: number;
+  sample_pcu_detail: string;
+  length_m: number;
+  before: { lanes: number; vc_ratio: number | null; free_flow_kmh: number; minutes: number };
+  after: { lanes: number; vc_ratio: number | null; free_flow_kmh: number; minutes: number };
+  change_pct: number;
+};
 
 export type NearbyFeature = {
   type: string;

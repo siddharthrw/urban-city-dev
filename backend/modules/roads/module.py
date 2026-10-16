@@ -12,7 +12,7 @@ from core.rules.schema import RuleError
 from core.store import catalog, layers
 from core.text import normalize_name
 from modules.roads import hooks, linking
-from modules.roads.design import engine
+from modules.roads.design import engine, impact
 from modules.roads.design.demand import Demand, build_demand
 from modules.roads.design.explain import explain as _explain, explain_one as _explain_one
 from modules.roads.design.pdf import build_pdf
@@ -180,6 +180,14 @@ class DesignBody(BaseModel):
     row_m: float | None = None  # what-if width; default is the road's own width
 
 
+def _attach_impact(result: dict, seg: dict, cfg: dict) -> None:
+    """Sample before/after travel-time estimate per option (M17) — see design/impact.py."""
+    for opt in result["options"]:
+        opt["impact"] = impact.estimate(
+            current_elements=result["current"]["elements"], option_lanes=opt["metrics"]["lanes"],
+            oneway=bool(seg["oneway"]), length_m=seg.get("length_m"), road_class=seg["road_class"], cfg=cfg)
+
+
 def _demand_for(city_id: str, seg_id: str, cfg: dict) -> Demand:
     def rows(layer_id: str) -> list[dict]:
         return layers.rows_linked_to(city_id, layer_id, seg_id, limit=200) if catalog.get_layer(city_id, layer_id) else []
@@ -225,6 +233,7 @@ def design_segment(city_id: str, seg_id: str, body: DesignBody = DesignBody()):
     result["two_wheeler_pct"] = demand.two_wheeler_pct
     result["two_wheeler_detail"] = demand.two_wheeler_detail
     result["current"] = engine.current_state(result["row_cm"])
+    _attach_impact(result, seg, cfg)
     return result
 
 
@@ -272,6 +281,7 @@ def _design_for(city_id: str, seg_id: str, context: list[str], row_m_override: f
     result["two_wheeler_pct"] = demand.two_wheeler_pct
     result["two_wheeler_detail"] = demand.two_wheeler_detail
     result["current"] = engine.current_state(result["row_cm"])
+    _attach_impact(result, seg, cfg)
     return seg, result
 
 

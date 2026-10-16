@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from "react";
 import SourceBadge from "../../../core/rules/SourceBadge";
 import { CONFIDENCE } from "../../../core/provenance";
 import CrossSection from "./CrossSection";
+import RoadScene3D from "./RoadScene3D";
+import TrafficImpactPanel from "./TrafficImpactPanel";
 import { CONTEXT_FLAGS, designApi, type DesignOption, type DesignResult, type NearbyFeature } from "./api";
 
 const CONFIDENCE_KEY = (s: string): keyof typeof CONFIDENCE =>
@@ -275,6 +277,20 @@ function OptionCard({ option: o, result, cityId, segId, context, width }: {
       <h3 className="text-sm font-semibold">{o.name}</h3>
       <p className="mb-2 text-xs text-slate-600">{o.summary}</p>
       <CrossSection elements={o.elements} rowCm={result.row_cm} title={o.name} />
+
+      <details className="mt-2 text-xs">
+        <summary className="cursor-pointer font-medium text-slate-700">3D view &amp; travel-time estimate (sample)</summary>
+        <div className="mt-2 grid gap-3 sm:grid-cols-2">
+          <RoadScene3D elements={result.current.elements} rowCm={result.row_cm}
+            trafficDensity={o.impact.before.vc_ratio} label="Today" />
+          <RoadScene3D elements={o.elements} rowCm={result.row_cm}
+            trafficDensity={o.impact.after.vc_ratio} label="This option" />
+        </div>
+        <div className="mt-2">
+          <TrafficImpactPanel impact={o.impact} />
+        </div>
+      </details>
+
       <dl className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-xs">
         <Metric label="Lanes" value={String(m.lanes)} />
         <Metric label="Lane width" value={`${m.lane_width_m} m`} />

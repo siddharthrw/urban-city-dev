@@ -29,6 +29,16 @@ def test_design_includes_the_current_road_for_a_before_after_comparison(client):
     assert current["note"]
 
 
+def test_each_option_has_a_sample_traffic_impact_estimate(client):
+    res = design(client, "1-2-0").json()
+    for o in res["options"]:
+        impact = o["impact"]
+        assert impact["sample_data"] is True
+        assert "SAMPLE" in impact["note"] and "SUMO" in impact["note"]
+        assert impact["before"]["lanes"] >= 1 and impact["after"]["lanes"] == o["metrics"]["lanes"]
+        assert isinstance(impact["change_pct"], float)
+
+
 def test_manual_width_override_is_marked_manual_and_can_unlock_more_options(client):
     res = design(client, "1-2-0", row_m=20).json()
     assert res["row_m"] == 20 and res["width_source"] == "manual"

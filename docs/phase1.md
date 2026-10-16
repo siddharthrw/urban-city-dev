@@ -233,6 +233,42 @@ Covers M0 through M7 for the Roads module (Chennai first).
 
 ---
 
+## M17 — 3D before/after view + sample travel-time impact ✅
+
+**Goal:** For each design option, show a schematic 3D view of the road today vs. with the option,
+and an illustrative travel-time estimate — clearly labelled as a model, not a measurement or a
+real traffic simulation.
+
+**What was built:**
+- `backend/modules/roads/design/impact.py`: before/after travel-time estimate using an assumed
+  SAMPLE demand volume and the standard BPR congestion curve (`minutes = free_flow × (1 + α·(v/c)^β)`).
+  "Before" lanes are inferred from the current (notional) carriageway width — there is no survey of
+  today's lane markings, same limitation as `engine.current_state`. Every number in the result is
+  under `sample_data: true` with a `note` naming SUMO as the eventual real replacement.
+- New `design_defaults.yaml` block: `free_flow_kmh` per road class, BPR `alpha`/`beta`,
+  `sample_demand_load_factor` — all UNCITED/SAMPLE, same labelling discipline as the rest of the file.
+- `module.py`: `_attach_impact()` adds `impact` to every option in the `/design` and `/design/explain*`
+  responses.
+- Frontend: `RoadScene3D.tsx` — a schematic three.js block model (not this segment's real geometry;
+  a representative 40 m stretch, like `CrossSection.tsx`'s "to scale, not to place" approach) with
+  buildings for context, trees for tree strips, and car counts scaled by the before/after v/c ratio.
+  Falls back to a text message where WebGL isn't available instead of throwing.
+- `TrafficImpactPanel.tsx`: plain-language before/after minutes and lane counts, always labelled SAMPLE.
+- Both sit inside a collapsed "3D view & travel-time estimate (sample)" details block per option in
+  `DesignPanel.tsx`, so the default view is unchanged.
+- `three` is dynamically imported only inside the 3D component, so it ships as its own chunk and
+  does not add to the initial bundle.
+
+**Key decisions:**
+- Not a traffic simulation. No SUMO run, no real demand by default — explicitly scoped as a
+  near-term illustrative model so the launch demo doesn't overclaim. SUMO integration is parked.
+- The 3D view is schematic, matching the existing cross-section drawing's philosophy: correct
+  proportions, not a map-accurate render of the clicked segment.
+- Every number carries the same `sample_data`/`SAMPLE` labelling convention already used for
+  `is_sample` rows and UNCITED rules — never presented as measured or simulated.
+
+---
+
 ## Guiding principles (all milestones)
 
 1. The LLM never does geometry or arithmetic — the deterministic engine does.
