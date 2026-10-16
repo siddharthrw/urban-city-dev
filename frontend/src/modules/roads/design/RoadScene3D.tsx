@@ -8,6 +8,7 @@ const FALLBACK_LENGTH_M = 40;
 const MAX_CARS_PER_LANE = 5;
 const TREE_SPACING_M = 4;
 const BUILDING_SPACING_M = 10;
+const MAX_PEDESTRIANS_PER_FOOTPATH = 3;
 
 const COLOR: Record<DesignElement["kind"], number> = {
   footpath: 0xd6ccb8,
@@ -111,6 +112,16 @@ export default function RoadScene3D({ elements, rowCm, geometry, trafficDensity,
       const curveLength = curve.getLength();
       const segments = Math.max(12, Math.min(72, Math.round(curveLength / 4)));
 
+      // Decorative content (ground extent, buildings, lane-divider dashes) only needs to cover
+      // roughly what the camera's default framing shows plus some pan/zoom room — building it for
+      // the whole corridor on a long road just wastes meshes nobody will see, and (for the ground)
+      // reads as one huge flat-colour patch. Trees stay instanced across the full alignment since
+      // that's cheap regardless of count.
+      const windowSpan = Math.min(curveLength, 200);
+      const windowFrac = Math.min(1, windowSpan / curveLength);
+      const tWinStart = Math.max(0, 0.5 - windowFrac / 2);
+      const tWinEnd = Math.min(1, 0.5 + windowFrac / 2);
+
       const up = new THREE.Vector3(0, 1, 0);
       const clampT = (t: number) => Math.min(0.999, Math.max(0, t));
       function frameAt(t: number) {
@@ -122,9 +133,30 @@ export default function RoadScene3D({ elements, rowCm, geometry, trafficDensity,
       }
 
       const mid = frameAt(0.5).point;
+
+      /** A small tiled texture (two faint seams) instead of one flat fill, so the ground reads
+       * as a surface at this scale rather than a solid colour patch. */
+      function makeGroundTexture() {
+        const size = 128;
+        const c = document.createElement("canvas");
+        c.width = c.height = size;
+        const ctx = c.getContext("2d")!;
+        ctx.fillStyle = "#cfd8c2";
+        ctx.fillRect(0, 0, size, size);
+        ctx.fillStyle = "rgba(0,0,0,0.05)";
+        ctx.fillRect(0, 0, size, 2);
+        ctx.fillRect(0, 0, 2, size);
+        const tex = new THREE.CanvasTexture(c);
+        tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+        return tex;
+      }
+
+      const groundSize = windowSpan + rowM + 40;
+      const groundTex = makeGroundTexture();
+      groundTex.repeat.set(groundSize / 6, groundSize / 6);
       const ground = new THREE.Mesh(
-        new THREE.PlaneGeometry(curveLength + rowM + 60, curveLength + rowM + 60),
-        new THREE.MeshStandardMaterial({ color: 0xdfe6ea }),
+        new THREE.PlaneGeometry(groundSize, groundSize),
+        new THREE.MeshStandardMaterial({ map: groundTex }),
       );
       ground.rotation.x = -Math.PI / 2;
       ground.position.set(mid.x, -0.02, mid.z);
@@ -164,8 +196,11 @@ export default function RoadScene3D({ elements, rowCm, geometry, trafficDensity,
 
       // Cross-section elements, left to right across the curve's local X, swept along its length.
       let x = -rowM / 2;
+      let prevKind: DesignElement["kind"] | null = null;
       const laneCentres: number[] = [];
       const treeCentres: number[] = [];
+      const footpathCentres: number[] = [];
+      const laneDividers: number[] = [];
       for (const e of elements) {
         const w = Math.max(e.width_m, 0.02);
         const x0 = x, x1 = x + w;
@@ -177,7 +212,39 @@ export default function RoadScene3D({ elements, rowCm, geometry, trafficDensity,
         scene.add(mesh);
         if (e.kind === "lane") laneCentres.push((x0 + x1) / 2);
         if (e.kind === "tree_strip") treeCentres.push((x0 + x1) / 2);
+        if (e.kind === "footpath") footpathCentres.push((x0 + x1) / 2);
+        if (prevKind === "lane" && e.kind === "lane") laneDividers.push(x0);
+        prevKind = e.kind;
         x = x1;
+      }
+
+      // Lane-divider dashes: thin instanced marks between adjacent travel lanes, within the
+      // camera's default window — a visual cue, not a lane-marking survey.
+      if (laneDividers.length) {
+        const dashLen = 3, gapLen = 2.5, cycle = dashLen + gapLen;
+        const dashesPerLine = Math.max(1, Math.floor(windowSpan / cycle));
+        const dashMesh = new THREE.InstancedMesh(
+          new THREE.BoxGeometry(0.14, 0.01, dashLen),
+          new THREE.MeshStandardMaterial({ color: 0xf2ead8 }),
+          laneDividers.length * dashesPerLine,
+        );
+        const m = new THREE.Matrix4();
+        let idx = 0;
+        laneDividers.forEach((xc) => {
+          for (let i = 0; i < dashesPerLine; i++) {
+            const t = tWinStart + windowFrac * ((i + 0.5) * cycle / windowSpan);
+            if (t > tWinEnd) continue;
+            const { point, right, tangent } = frameAt(t);
+            const pos = point.clone().addScaledVector(right, xc);
+            pos.y += 0.025;
+            m.makeBasis(right, up, tangent);
+            m.setPosition(pos.x, pos.y, pos.z);
+            dashMesh.setMatrixAt(idx++, m);
+          }
+        });
+        dashMesh.count = idx;
+        dashMesh.instanceMatrix.needsUpdate = true;
+        scene.add(dashMesh);
       }
 
       // Trees: instanced (one draw call per part regardless of count) along each tree_strip,
@@ -206,12 +273,14 @@ export default function RoadScene3D({ elements, rowCm, geometry, trafficDensity,
       }
 
       // Buildings: schematic context blocks beyond the row on each side, following the curve —
-      // not real building footprints (see RoadFlowMap for the same simplification).
+      // not real building footprints (see RoadFlowMap for the same simplification). Only placed
+      // within the camera's default window (see windowSpan above).
       const halfRow = rowM / 2;
-      const buildingCount = Math.max(2, Math.round(curveLength / BUILDING_SPACING_M));
+      const buildingCount = Math.max(2, Math.round(windowSpan / BUILDING_SPACING_M));
       for (const side of [-1, 1]) {
         for (let i = 0; i < buildingCount; i++) {
-          const { point, right, tangent } = frameAt((i + 0.5) / buildingCount);
+          const t = tWinStart + windowFrac * ((i + 0.5) / buildingCount);
+          const { point, right, tangent } = frameAt(t);
           const bw = 5, bd = 6, bh = 6 + (i % 3) * 3;
           const base = point.clone().addScaledVector(right, side * (halfRow + 3 + bw / 2));
           const mesh = new THREE.Mesh(new THREE.BoxGeometry(bw, bh, bd), new THREE.MeshStandardMaterial({ color: 0xb9c2cc }));
@@ -239,6 +308,31 @@ export default function RoadScene3D({ elements, rowCm, geometry, trafficDensity,
         }
       });
 
+      // Walking pedestrians: a visual cue on footpaths, not traffic data (there's no pedestrian
+      // count in the model) — a modest fixed number per footpath, walking both directions at a
+      // slower, constant pace, same per-frame animation technique as the cars.
+      const PED_COLORS = [0x3b5bdb, 0xd9480f, 0x2b8a3e, 0x862e9c, 0x1098ad];
+      const pedBodyGeo = new THREE.BoxGeometry(0.32, 0.85, 0.2);
+      const pedHeadGeo = new THREE.SphereGeometry(0.15, 8, 8);
+      const pedestrians: { mesh: InstanceType<typeof THREE.Group>; t: number; speed: number; xc: number }[] = [];
+      footpathCentres.forEach((xc, fi) => {
+        for (let i = 0; i < MAX_PEDESTRIANS_PER_FOOTPATH; i++) {
+          const color = PED_COLORS[(fi * 7 + i) % PED_COLORS.length];
+          const group = new THREE.Group();
+          const body = new THREE.Mesh(pedBodyGeo, new THREE.MeshStandardMaterial({ color }));
+          body.position.y = 0.52;
+          const head = new THREE.Mesh(pedHeadGeo, new THREE.MeshStandardMaterial({ color: 0xe8c39e }));
+          head.position.y = 1.05;
+          group.add(body, head);
+          scene!.add(group);
+          pedestrians.push({
+            mesh: group, xc,
+            t: (i / MAX_PEDESTRIANS_PER_FOOTPATH + fi * 0.5) % 1,
+            speed: (i % 2 === 0 ? 1 : -1) * (0.0006 + (i / MAX_PEDESTRIANS_PER_FOOTPATH) * 0.0003),
+          });
+        }
+      });
+
       // Frame a representative stretch of the corridor around its midpoint, not the whole
       // thing — a long segment (hundreds of metres) framed in full would put the camera so far
       // up that the road and buildings shrink to an invisible sliver. OrbitControls still lets
@@ -257,6 +351,14 @@ export default function RoadScene3D({ elements, rowCm, geometry, trafficDensity,
           const pos = point.clone().addScaledVector(right, c.xc);
           c.mesh.position.set(pos.x, 0.6, pos.z);
           c.mesh.lookAt(pos.x + tangent.x, 0.6, pos.z + tangent.z);
+        });
+        pedestrians.forEach((p) => {
+          p.t = (p.t + p.speed + 1) % 1;
+          const { point, right, tangent } = frameAt(p.t);
+          const dir = p.speed >= 0 ? tangent : tangent.clone().multiplyScalar(-1);
+          const pos = point.clone().addScaledVector(right, p.xc);
+          p.mesh.position.set(pos.x, 0, pos.z);
+          p.mesh.lookAt(pos.x + dir.x, 0, pos.z + dir.z);
         });
         controls.update();
         renderer.render(scene, camera);
@@ -280,8 +382,11 @@ export default function RoadScene3D({ elements, rowCm, geometry, trafficDensity,
         const mesh = obj as import("three").Mesh | import("three").InstancedMesh;
         mesh.geometry?.dispose?.();
         const mat = mesh.material;
-        if (Array.isArray(mat)) mat.forEach((m) => m.dispose());
-        else mat?.dispose?.();
+        const mats = Array.isArray(mat) ? mat : mat ? [mat] : [];
+        mats.forEach((m) => {
+          (m as import("three").MeshStandardMaterial).map?.dispose?.();
+          m.dispose();
+        });
       });
       controls?.dispose();
       renderer?.dispose();

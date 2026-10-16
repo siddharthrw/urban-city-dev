@@ -101,21 +101,21 @@ export default function RoadDashboard({ cityId, segId, optionId, context, rowM, 
 
                 <h2 className="mb-3 mt-6 text-xs font-semibold uppercase tracking-widest text-cyan-300/80">Flow map</h2>
                 <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="rounded-lg bg-slate-50 p-2">
-                    <RoadFlowMap geometry={result.segment.geometry} elements={result.current.elements} vcRatio={option.impact.before.vc_ratio} label="Today" />
+                  <div className="rounded-lg border border-slate-800 bg-slate-900/40 p-2">
+                    <RoadFlowMap geometry={result.segment.geometry} elements={result.current.elements} vcRatio={option.impact.before.vc_ratio} label="Today" dark />
                   </div>
-                  <div className="rounded-lg bg-slate-50 p-2">
-                    <RoadFlowMap geometry={result.segment.geometry} elements={option.elements} vcRatio={option.impact.after.vc_ratio} label={option.name} />
+                  <div className="rounded-lg border border-slate-800 bg-slate-900/40 p-2">
+                    <RoadFlowMap geometry={result.segment.geometry} elements={option.elements} vcRatio={option.impact.after.vc_ratio} label={option.name} dark />
                   </div>
                 </div>
 
                 <h2 className="mb-3 mt-6 text-xs font-semibold uppercase tracking-widest text-cyan-300/80">Cross-section</h2>
                 <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="rounded-lg bg-slate-50 p-2">
-                    <CrossSection elements={result.current.elements} rowCm={result.row_cm} title="Today" />
+                  <div className="rounded-lg border border-slate-800 bg-slate-900/40 p-2">
+                    <CrossSection elements={result.current.elements} rowCm={result.row_cm} title="Today" dark />
                   </div>
-                  <div className="rounded-lg bg-slate-50 p-2">
-                    <CrossSection elements={option.elements} rowCm={result.row_cm} title={option.name} />
+                  <div className="rounded-lg border border-slate-800 bg-slate-900/40 p-2">
+                    <CrossSection elements={option.elements} rowCm={result.row_cm} title={option.name} dark />
                   </div>
                 </div>
               </section>

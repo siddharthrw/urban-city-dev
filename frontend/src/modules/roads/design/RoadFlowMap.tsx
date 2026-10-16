@@ -34,6 +34,9 @@ type Props = {
   /** 0-1+ volume/capacity; null draws a neutral road with no flow (no demand data). */
   vcRatio: number | null;
   label: string;
+  /** RoadDashboard's dark page — swaps the canvas fill and outside-canvas text so this doesn't
+   * paint its own light rectangle in the middle of a dark layout. */
+  dark?: boolean;
 };
 
 /** A top-down, to-scale flow map of the segment's real alignment. The lane core is coloured by
@@ -41,7 +44,7 @@ type Props = {
  * has them, are drawn as their own bands either side so "today, no footpath" and "this option,
  * with one" read differently. Plain 2D canvas — no WebGL, so no context-budget concerns the way
  * RoadScene3D has. */
-export default function RoadFlowMap({ geometry, elements, vcRatio, label }: Props) {
+export default function RoadFlowMap({ geometry, elements, vcRatio, label, dark = false }: Props) {
   const container = useRef<HTMLDivElement>(null);
   const hasFootpath = elements.some((e) => e.kind === "footpath");
   const hasCycleTrack = elements.some((e) => e.kind === "cycle_track");
@@ -102,7 +105,7 @@ export default function RoadFlowMap({ geometry, elements, vcRatio, label }: Prop
     function draw() {
       if (disposed || !ctx) return;
       ctx.clearRect(0, 0, w, h);
-      ctx.fillStyle = "#f8fafc"; ctx.fillRect(0, 0, w, h);
+      ctx.fillStyle = dark ? "#0f172a" : "#f8fafc"; ctx.fillRect(0, 0, w, h);
       ctx.lineCap = "round"; ctx.lineJoin = "round";
 
       if (hasTrees) {
@@ -141,7 +144,7 @@ export default function RoadFlowMap({ geometry, elements, vcRatio, label }: Prop
         dotsFwd.forEach((t, i) => {
           const idx = Math.max(0, Math.min(n, Math.floor(t * n)));
           const p = samples[idx], nrm = normalAt(idx);
-          ctx.fillStyle = "#0f172a";
+          ctx.fillStyle = dark ? "#e2e8f0" : "#0f172a";
           ctx.beginPath(); ctx.arc(p.x + nrm.x * 4, p.y + nrm.y * 4, 2.6, 0, Math.PI * 2); ctx.fill();
           dotsFwd[i] = (t + speed) % 1;
         });
@@ -163,7 +166,7 @@ export default function RoadFlowMap({ geometry, elements, vcRatio, label }: Prop
       cancelAnimationFrame(frame);
       el.replaceChildren();
     };
-  }, [geometry, vcRatio, hasFootpath, hasCycleTrack, hasTrees]);
+  }, [geometry, vcRatio, hasFootpath, hasCycleTrack, hasTrees, dark]);
 
   if (!geometry || geometry.coordinates.length < 2) {
     return (
@@ -176,8 +179,8 @@ export default function RoadFlowMap({ geometry, elements, vcRatio, label }: Prop
 
   return (
     <div>
-      <div ref={container} data-testid="road-flow-map" className="h-40 w-full overflow-hidden rounded border border-slate-200" />
-      <p className="mt-1 text-center text-xs text-slate-500">{label}</p>
+      <div ref={container} data-testid="road-flow-map" className={`h-40 w-full overflow-hidden rounded border ${dark ? "border-slate-700" : "border-slate-200"}`} />
+      <p className={`mt-1 text-center text-xs ${dark ? "text-slate-400" : "text-slate-500"}`}>{label}</p>
       <ul className="mt-1 flex flex-wrap justify-center gap-x-3 gap-y-0.5 text-[10px] text-slate-400" aria-label="Legend">
         <li className="flex items-center gap-1"><span className="inline-block h-1.5 w-2.5 rounded-sm" style={{ background: "#64748b" }} />Lane</li>
         {hasCycleTrack && <li className="flex items-center gap-1"><span className="inline-block h-1.5 w-2.5 rounded-sm" style={{ background: CYCLE_TRACK_COLOR }} />Cycle track</li>}
