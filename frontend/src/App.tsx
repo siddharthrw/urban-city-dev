@@ -289,7 +289,9 @@ export default function App() {
         )}
         {page === "rules" && <RulesPage />}
         {page === "road-dashboard" && dashboardTarget && (
-          <RoadDashboard {...dashboardTarget} onBack={() => setPage("map")} />
+          <div className="fixed inset-0 z-50">
+            <RoadDashboard {...dashboardTarget} onBack={() => setPage("map")} />
+          </div>
         )}
       </div>
     </div>

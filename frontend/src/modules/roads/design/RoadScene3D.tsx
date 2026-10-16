@@ -239,10 +239,13 @@ export default function RoadScene3D({ elements, rowCm, geometry, trafficDensity,
         }
       });
 
-      const box = new THREE.Box3().setFromPoints(curvePoints);
-      const center = box.getCenter(new THREE.Vector3());
-      const size = box.getSize(new THREE.Vector3());
-      const dist = Math.max(size.x, size.z, 16) * 0.75;
+      // Frame a representative stretch of the corridor around its midpoint, not the whole
+      // thing — a long segment (hundreds of metres) framed in full would put the camera so far
+      // up that the road and buildings shrink to an invisible sliver. OrbitControls still lets
+      // the viewer pan/zoom to see more of what was built along the rest of the curve.
+      const viewSpan = Math.min(curveLength, 120);
+      const dist = Math.max(viewSpan, rowM * 2, 16) * 0.75;
+      const center = mid;
       camera.position.set(center.x + dist * 0.6, Math.max(dist * 0.55, 14), center.z + dist * 0.6);
       controls.target.copy(center);
 
