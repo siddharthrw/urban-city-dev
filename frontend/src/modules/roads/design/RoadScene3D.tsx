@@ -66,6 +66,8 @@ export default function RoadScene3D({ elements, rowCm, geometry, trafficDensity,
 
     let disposed = false;
     let renderer: import("three").WebGLRenderer | null = null;
+    let controls: import("three/examples/jsm/controls/OrbitControls.js").OrbitControls | null = null;
+    let scene: import("three").Scene | null = null;
     let frame = 0;
 
     (async () => {
@@ -80,7 +82,7 @@ export default function RoadScene3D({ elements, rowCm, geometry, trafficDensity,
       const height = el.clientHeight || 260;
       const rowM = rowCm / 100;
 
-      const scene = new THREE.Scene();
+      scene = new THREE.Scene();
       scene.background = new THREE.Color(0xeaf2f8);
       scene.fog = new THREE.Fog(0xeaf2f8, 50, 260);
 
@@ -90,7 +92,7 @@ export default function RoadScene3D({ elements, rowCm, geometry, trafficDensity,
       renderer.setSize(width, height);
       el.replaceChildren(renderer.domElement);
 
-      const controls = new OrbitControls(camera, renderer.domElement);
+      controls = new OrbitControls(camera, renderer.domElement);
       controls.enableDamping = true;
       controls.maxPolarAngle = Math.PI / 2.1;
 
@@ -228,7 +230,7 @@ export default function RoadScene3D({ elements, rowCm, geometry, trafficDensity,
       laneCentres.forEach((xc, li) => {
         for (let i = 0; i < carsPerLane; i++) {
           const mesh = new THREE.Mesh(carGeo, new THREE.MeshStandardMaterial({ color: 0xc0392b }));
-          scene.add(mesh);
+          scene!.add(mesh);
           cars.push({
             mesh, xc,
             t: (i / Math.max(carsPerLane, 1) + li * 0.37) % 1,
@@ -245,7 +247,7 @@ export default function RoadScene3D({ elements, rowCm, geometry, trafficDensity,
       controls.target.copy(center);
 
       const animate = () => {
-        if (disposed || !renderer) return;
+        if (disposed || !renderer || !scene || !controls) return;
         cars.forEach((c) => {
           c.t = (c.t + c.speed) % 1;
           const { point, right, tangent } = frameAt(c.t);
@@ -268,6 +270,17 @@ export default function RoadScene3D({ elements, rowCm, geometry, trafficDensity,
     return () => {
       disposed = true;
       cancelAnimationFrame(frame);
+      // three.js doesn't track GPU resources with JS GC — every geometry/material/texture
+      // allocated above must be disposed by hand, or re-mounting this component (e.g. toggling
+      // Today/option on the dashboard) leaks VRAM until the tab crashes.
+      scene?.traverse((obj) => {
+        const mesh = obj as import("three").Mesh | import("three").InstancedMesh;
+        mesh.geometry?.dispose?.();
+        const mat = mesh.material;
+        if (Array.isArray(mat)) mat.forEach((m) => m.dispose());
+        else mat?.dispose?.();
+      });
+      controls?.dispose();
       renderer?.dispose();
       el.replaceChildren();
     };
