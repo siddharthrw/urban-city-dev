@@ -68,6 +68,29 @@ describe("RoadDashboard", () => {
     expect(metrics.getByText("2")).toBeInTheDocument(); // lanes
   });
 
+  it("shows a single street-level scene with a Today/option toggle, defaulting to Today", async () => {
+    render(<RoadDashboard {...props} />);
+    await screen.findByText(/Street-level dashboard/);
+    const detail = within(screen.getByRole("region", { name: "Street-level detail" }));
+    await waitFor(() => expect(detail.getAllByTestId("road-scene-3d-unsupported")).toHaveLength(1));
+    const hero = within(screen.getByLabelText("Hero scene"));
+    expect(hero.getByText("Today")).toBeInTheDocument();
+    expect(detail.getByRole("button", { name: "Today" })).toHaveAttribute("aria-pressed", "true");
+    expect(detail.getByRole("button", { name: "Traffic priority" })).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("switches the street-level scene to the option when its toggle button is clicked", async () => {
+    const user = userEvent.setup();
+    render(<RoadDashboard {...props} />);
+    await screen.findByText(/Street-level dashboard/);
+    const detail = within(screen.getByRole("region", { name: "Street-level detail" }));
+    await user.click(detail.getByRole("button", { name: "Traffic priority" }));
+    await waitFor(() => expect(detail.getAllByTestId("road-scene-3d-unsupported")).toHaveLength(1));
+    const hero = within(screen.getByLabelText("Hero scene"));
+    expect(hero.getByText("Traffic priority")).toBeInTheDocument();
+    expect(detail.getByRole("button", { name: "Traffic priority" })).toHaveAttribute("aria-pressed", "true");
+  });
+
   it("goes back when the back link is clicked", async () => {
     const user = userEvent.setup();
     render(<RoadDashboard {...props} />);

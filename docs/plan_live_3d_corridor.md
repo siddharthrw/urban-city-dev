@@ -1,8 +1,9 @@
-# Plan: Live 3D Corridor (parked, M17 option 2)
+# Plan: Live 3D Corridor (M17 option 2 — built in M19)
 
-Not scheduled. Written down so the decision and the build plan aren't lost — see
-`docs/phase1.md` M17/M18 for what shipped instead (Flow Map + a road-dashboard page for the
-3D snapshot).
+**Status: built.** See `docs/phase1.md` M19 for what actually shipped and where it differs from
+this plan (kept below as the design record, not edited to match in hindsight). M17/M18 shipped
+first (Flow Map + a road-dashboard page carrying the old straight 3D snapshot); this plan was
+picked back up once the straight snapshot read as "flat" in review.
 
 ## What it is
 

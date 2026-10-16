@@ -14,6 +14,7 @@ type Props = DetailTarget & { onBack: () => void };
 export default function RoadDashboard({ cityId, segId, optionId, context, rowM, onBack }: Props) {
   const [result, setResult] = useState<DesignResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [mode, setMode] = useState<"today" | "option">("today");
 
   useEffect(() => {
     let cancelled = false;
@@ -50,12 +51,27 @@ export default function RoadDashboard({ cityId, segId, optionId, context, rowM, 
         {result && option && (
           <div className="grid gap-5 lg:grid-cols-3">
             <section aria-label="Street-level detail" className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm lg:col-span-2">
-              <h2 className="mb-3 text-sm font-semibold text-slate-700">Street-level detail</h2>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <RoadScene3D elements={result.current.elements} rowCm={result.row_cm}
-                  trafficDensity={option.impact.before.vc_ratio} label="Today" />
-                <RoadScene3D elements={option.elements} rowCm={result.row_cm}
-                  trafficDensity={option.impact.after.vc_ratio} label={option.name} />
+              <div className="mb-3 flex items-center justify-between">
+                <h2 className="text-sm font-semibold text-slate-700">Street-level detail</h2>
+                <div className="inline-flex overflow-hidden rounded-md border border-slate-300 text-xs" role="group" aria-label="Scenario">
+                  <button onClick={() => setMode("today")} aria-pressed={mode === "today"}
+                    className={`px-3 py-1.5 ${mode === "today" ? "bg-blue-600 font-medium text-white" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
+                    Today
+                  </button>
+                  <button onClick={() => setMode("option")} aria-pressed={mode === "option"}
+                    className={`border-l border-slate-300 px-3 py-1.5 ${mode === "option" ? "bg-blue-600 font-medium text-white" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
+                    {option.name}
+                  </button>
+                </div>
+              </div>
+              <div aria-label="Hero scene">
+                <RoadScene3D
+                  elements={mode === "today" ? result.current.elements : option.elements}
+                  rowCm={result.row_cm}
+                  geometry={result.segment.geometry}
+                  trafficDensity={mode === "today" ? option.impact.before.vc_ratio : option.impact.after.vc_ratio}
+                  label={mode === "today" ? "Today" : option.name}
+                />
               </div>
               <h2 className="mb-3 mt-6 text-sm font-semibold text-slate-700">Flow map</h2>
               <div className="grid gap-4 sm:grid-cols-2">

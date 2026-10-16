@@ -307,6 +307,44 @@ congestion, motion — without the cost of a full curved 3D rebuild (that's M17'
 
 ---
 
+## M19 — Live 3D Corridor: the street-level dashboard follows the real curve ✅
+
+**Goal:** Replace the dashboard page's straight, flat 3D snapshot (M17/M18) with the actual
+"Live 3D Corridor" design from M17 option 2 — the road's real curve, cars driving the lanes, the
+road surface tinted by congestion. Build plan: `docs/plan_live_3d_corridor.md`.
+
+**What was built:**
+- `frontend/src/modules/roads/design/geo.ts`: `projectLocal()`, the lon/lat → local-metres flat
+  projection, pulled out of `RoadFlowMap.tsx` so `RoadScene3D.tsx` can share it (one projection,
+  not two copies that could drift).
+- `RoadScene3D.tsx` rewritten: builds a `THREE.CatmullRomCurve3` from the segment's real geometry,
+  then sweeps each cross-section element along it as an extruded ribbon (top face + two side
+  walls, mitred implicitly because every sample recomputes its own local "right" vector from the
+  curve's tangent) instead of a straight `BoxGeometry` per element. Trees are
+  `THREE.InstancedMesh` (one draw call per part regardless of count) spaced along each tree strip
+  by real arc length. Cars are animated every frame along the curve's arc length via
+  `curve.getPointAt(t)`/`getTangentAt(t)`, oriented to face the direction of travel, with
+  count and speed driven by `vcRatio` — lane material colour is tinted the same way. Falls back to
+  a short straight stretch when geometry is missing (shouldn't happen — the dashboard always has
+  it) and to the existing WebGL-unsupported message otherwise.
+- `RoadDashboard.tsx`: the street-level section is now a single large scene with a Today/This
+  option toggle above it (`aria-pressed`), rather than two side-by-side scenes — matching the
+  confirmed design mockup and halving the simultaneous WebGL-context cost versus the M17/M18
+  layout.
+
+**Key decisions, vs. the original plan:**
+- **No shared-renderer pool.** The plan flagged this as required infrastructure because M17's
+  cards showed up to 6 simultaneous scenes. That problem doesn't exist here: cards no longer
+  render any 3D (M18), and the dashboard's single-hero-plus-toggle layout (a late addition to the
+  plan, from the agreed mockup) means at most one `RoadScene3D` is ever mounted at a time. Revisit
+  only if a future page mounts more than one concurrently.
+- Projection stayed client-side/flat, as the plan recommended — no backend change in this
+  milestone either.
+- Ribbons are flat-shaded solid prisms (top + two sides, no bottom — unseen), not full closed
+  boxes; cheaper to build and visually identical from the camera angles `RoadDashboard` uses.
+
+---
+
 ## Guiding principles (all milestones)
 
 1. The LLM never does geometry or arithmetic — the deterministic engine does.

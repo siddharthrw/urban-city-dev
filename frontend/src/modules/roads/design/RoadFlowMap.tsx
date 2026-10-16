@@ -1,11 +1,5 @@
 import { useEffect, useRef } from "react";
-
-// Earth radius in metres, for a flat-earth projection good enough at segment scale (tens to a
-// few hundred metres) — the same approximation the rest of this project's schematic drawings
-// already lean on (see RoadScene3D.tsx and docs/plan_live_3d_corridor.md for where it stops
-// being good enough).
-const EARTH_R_M = 6371000;
-const DEG = Math.PI / 180;
+import { projectLocal } from "./geo";
 
 const COL_GOOD = [54, 226, 196];
 const COL_WARN = [240, 169, 60];
@@ -26,19 +20,6 @@ function drawTree(ctx: CanvasRenderingContext2D, x: number, y: number, s: number
   ctx.fillStyle = "#36a87f";
   ctx.beginPath(); ctx.arc(x - s * 0.12, y - s * 0.36, s * 0.17, 0, Math.PI * 2); ctx.fill();
   ctx.beginPath(); ctx.arc(x + s * 0.13, y - s * 0.34, s * 0.15, 0, Math.PI * 2); ctx.fill();
-}
-
-/** Project [lon, lat] pairs to local metres relative to their own centroid, flipping Y so north
- * is up on screen. Good at segment scale; see docs/plan_live_3d_corridor.md for the real-UTM
- * alternative if a very curved or very long segment ever makes this visibly wrong. */
-function projectLocal(coords: [number, number][]): { x: number; y: number }[] {
-  const lat0 = coords.reduce((s, [, lat]) => s + lat, 0) / coords.length;
-  const lon0 = coords.reduce((s, [lon]) => s + lon, 0) / coords.length;
-  const cosLat0 = Math.cos(lat0 * DEG);
-  return coords.map(([lon, lat]) => ({
-    x: (lon - lon0) * DEG * EARTH_R_M * cosLat0,
-    y: -(lat - lat0) * DEG * EARTH_R_M,
-  }));
 }
 
 type Props = {
