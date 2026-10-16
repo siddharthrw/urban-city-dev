@@ -75,8 +75,8 @@ export default function RoadDashboard({ cityId, segId, optionId, context, rowM, 
               </div>
               <h2 className="mb-3 mt-6 text-sm font-semibold text-slate-700">Flow map</h2>
               <div className="grid gap-4 sm:grid-cols-2">
-                <RoadFlowMap geometry={result.segment.geometry} vcRatio={option.impact.before.vc_ratio} label="Today" />
-                <RoadFlowMap geometry={result.segment.geometry} vcRatio={option.impact.after.vc_ratio} label={option.name} />
+                <RoadFlowMap geometry={result.segment.geometry} elements={result.current.elements} vcRatio={option.impact.before.vc_ratio} label="Today" />
+                <RoadFlowMap geometry={result.segment.geometry} elements={option.elements} vcRatio={option.impact.after.vc_ratio} label={option.name} />
               </div>
               <h2 className="mb-3 mt-6 text-sm font-semibold text-slate-700">Cross-section</h2>
               <div className="grid gap-4 sm:grid-cols-2">

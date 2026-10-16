@@ -281,8 +281,8 @@ function OptionCard({ option: o, result, cityId, segId, context, width, onOpenDe
       <CrossSection elements={o.elements} rowCm={result.row_cm} title={o.name} />
 
       <div className="mt-2 grid gap-3 sm:grid-cols-2">
-        <RoadFlowMap geometry={result.segment.geometry} vcRatio={o.impact.before.vc_ratio} label="Today" />
-        <RoadFlowMap geometry={result.segment.geometry} vcRatio={o.impact.after.vc_ratio} label="This option" />
+        <RoadFlowMap geometry={result.segment.geometry} elements={result.current.elements} vcRatio={o.impact.before.vc_ratio} label="Today" />
+        <RoadFlowMap geometry={result.segment.geometry} elements={o.elements} vcRatio={o.impact.after.vc_ratio} label="This option" />
       </div>
       <div className="mt-2">
         <TrafficImpactPanel impact={o.impact} />

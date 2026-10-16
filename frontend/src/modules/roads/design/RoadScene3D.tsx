@@ -46,9 +46,11 @@ type Props = {
  * stretch when there's no geometry, and to a text message where WebGL isn't available (e.g. the
  * jsdom test environment) instead of throwing. See docs/plan_live_3d_corridor.md for the build
  * notes this implements. */
+type Status = "loading" | "ready" | "unsupported" | "error";
+
 export default function RoadScene3D({ elements, rowCm, geometry, trafficDensity, label }: Props) {
   const container = useRef<HTMLDivElement>(null);
-  const [unsupported, setUnsupported] = useState(false);
+  const [status, setStatus] = useState<Status>("loading");
 
   useEffect(() => {
     const el = container.current;
@@ -57,16 +59,17 @@ export default function RoadScene3D({ elements, rowCm, geometry, trafficDensity,
     const probe = document.createElement("canvas");
     const supported = !!(probe.getContext("webgl2") || probe.getContext("webgl"));
     if (!supported) {
-      setUnsupported(true);
+      setStatus("unsupported");
       return;
     }
-    setUnsupported(false);
+    setStatus("loading");
 
     let disposed = false;
     let renderer: import("three").WebGLRenderer | null = null;
     let frame = 0;
 
     (async () => {
+      try {
       const THREE = await import("three");
       const { OrbitControls } = await import("three/examples/jsm/controls/OrbitControls.js");
       if (disposed || !el) return;
@@ -254,7 +257,12 @@ export default function RoadScene3D({ elements, rowCm, geometry, trafficDensity,
         renderer.render(scene, camera);
         frame = requestAnimationFrame(animate);
       };
+      if (!disposed) setStatus("ready");
       animate();
+      } catch (err) {
+        console.error("RoadScene3D failed to build the 3D view:", err);
+        if (!disposed) setStatus("error");
+      }
     })();
 
     return () => {
@@ -267,14 +275,29 @@ export default function RoadScene3D({ elements, rowCm, geometry, trafficDensity,
 
   return (
     <div>
-      {unsupported ? (
-        <div data-testid="road-scene-3d-unsupported"
-          className="flex h-64 items-center justify-center rounded border border-slate-200 bg-slate-50 text-xs text-slate-500">
-          3D preview needs a browser with WebGL.
-        </div>
-      ) : (
-        <div ref={container} data-testid="road-scene-3d" className="h-64 w-full overflow-hidden rounded border border-slate-200" />
-      )}
+      <div className="relative">
+        {status !== "unsupported" && status !== "error" && (
+          <div ref={container} data-testid="road-scene-3d" className="h-64 w-full overflow-hidden rounded border border-slate-200" />
+        )}
+        {status === "loading" && (
+          <div data-testid="road-scene-3d-loading"
+            className="absolute inset-0 flex items-center justify-center rounded border border-slate-200 bg-slate-50 text-xs text-slate-400">
+            Loading 3D view…
+          </div>
+        )}
+        {status === "unsupported" && (
+          <div data-testid="road-scene-3d-unsupported"
+            className="flex h-64 items-center justify-center rounded border border-slate-200 bg-slate-50 text-xs text-slate-500">
+            3D preview needs a browser with WebGL.
+          </div>
+        )}
+        {status === "error" && (
+          <div data-testid="road-scene-3d-error"
+            className="flex h-64 items-center justify-center rounded border border-slate-200 bg-slate-50 px-4 text-center text-xs text-slate-500">
+            Couldn't build the 3D view for this road. Try "Today" / "This option" again, or reload the page.
+          </div>
+        )}
+      </div>
       <p className="mt-1 text-center text-xs text-slate-500">{label}</p>
     </div>
   );

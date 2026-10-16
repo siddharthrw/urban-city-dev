@@ -1,9 +1,12 @@
 import { useEffect, useRef } from "react";
 import { projectLocal } from "./geo";
+import type { DesignElement } from "./api";
 
 const COL_GOOD = [54, 226, 196];
 const COL_WARN = [240, 169, 60];
 const COL_CRIT = [239, 83, 80];
+const FOOTPATH_COLOR = "#b8a888";
+const CYCLE_TRACK_COLOR = "#5f93c9";
 
 function lerp(a: number[], b: number[], t: number): string {
   return `rgb(${Math.round(a[0] + (b[0] - a[0]) * t)},${Math.round(a[1] + (b[1] - a[1]) * t)},${Math.round(a[2] + (b[2] - a[2]) * t)})`;
@@ -24,17 +27,25 @@ function drawTree(ctx: CanvasRenderingContext2D, x: number, y: number, s: number
 
 type Props = {
   geometry: { type: "LineString"; coordinates: [number, number][] } | null;
+  /** This scenario's actual cross-section — drives whether footpath/cycle-track bands and tree
+   * icons are drawn, so the map never shows a tree that isn't really there (or hides a footpath
+   * that is). */
+  elements: DesignElement[];
   /** 0-1+ volume/capacity; null draws a neutral road with no flow (no demand data). */
   vcRatio: number | null;
   label: string;
-  showTrees?: boolean;
 };
 
-/** A top-down, to-scale flow map of the segment's real alignment: colour reads as congestion,
- * dots flow along the road at a speed/spacing tied to that same number. Plain 2D canvas — no
- * WebGL, so no context-budget concerns the way RoadScene3D has. */
-export default function RoadFlowMap({ geometry, vcRatio, label, showTrees = true }: Props) {
+/** A top-down, to-scale flow map of the segment's real alignment. The lane core is coloured by
+ * congestion with dots flowing along it; footpath and cycle-track, when this scenario actually
+ * has them, are drawn as their own bands either side so "today, no footpath" and "this option,
+ * with one" read differently. Plain 2D canvas — no WebGL, so no context-budget concerns the way
+ * RoadScene3D has. */
+export default function RoadFlowMap({ geometry, elements, vcRatio, label }: Props) {
   const container = useRef<HTMLDivElement>(null);
+  const hasFootpath = elements.some((e) => e.kind === "footpath");
+  const hasCycleTrack = elements.some((e) => e.kind === "cycle_track");
+  const hasTrees = elements.some((e) => e.kind === "tree_strip");
 
   useEffect(() => {
     const el = container.current;
@@ -69,8 +80,21 @@ export default function RoadFlowMap({ geometry, vcRatio, label, showTrees = true
       const dx = b.x - a.x, dy = b.y - a.y, len = Math.hypot(dx, dy) || 1;
       return { x: -dy / len, y: dx / len };
     }
+    function strokeOffset(offset: number, color: string, width: number) {
+      if (!ctx) return;
+      ctx.strokeStyle = color; ctx.lineWidth = width;
+      ctx.beginPath();
+      samples.forEach((p, i) => {
+        const n = normalAt(i);
+        const x = p.x + n.x * offset, y = p.y + n.y * offset;
+        i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+    }
 
     const vc = vcRatio ?? 0;
+    const treeOffset = hasFootpath ? 16 : 10;
+    const footpathOffset = 9, cycleTrackOffset = hasFootpath ? 5.5 : 4;
     const dotsFwd = [0, 0.25, 0.5, 0.75];
     const dotsBack = [0.1, 0.45, 0.8];
     let disposed = false, frame = 0;
@@ -79,17 +103,19 @@ export default function RoadFlowMap({ geometry, vcRatio, label, showTrees = true
       if (disposed || !ctx) return;
       ctx.clearRect(0, 0, w, h);
       ctx.fillStyle = "#f8fafc"; ctx.fillRect(0, 0, w, h);
+      ctx.lineCap = "round"; ctx.lineJoin = "round";
 
-      if (showTrees) {
+      if (hasTrees) {
         const step = Math.max(1, Math.round(samples.length / 7));
         for (let i = 0; i < samples.length; i += step) {
           const n = normalAt(i);
-          drawTree(ctx, samples[i].x + n.x * 18, samples[i].y + n.y * 18, 15);
-          drawTree(ctx, samples[i].x - n.x * 18, samples[i].y - n.y * 18, 15);
+          drawTree(ctx, samples[i].x + n.x * treeOffset, samples[i].y + n.y * treeOffset, 15);
+          drawTree(ctx, samples[i].x - n.x * treeOffset, samples[i].y - n.y * treeOffset, 15);
         }
       }
 
-      ctx.lineCap = "round"; ctx.lineJoin = "round";
+      // Casing for the core (lane) band only — footpath/cycle-track bands are drawn as their own
+      // thin coloured lines, not part of this dark casing, so they read as separate elements.
       ctx.beginPath();
       samples.forEach((p, i) => (i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y)));
       ctx.strokeStyle = "#334155"; ctx.lineWidth = 9; ctx.stroke();
@@ -99,6 +125,15 @@ export default function RoadFlowMap({ geometry, vcRatio, label, showTrees = true
       ctx.beginPath();
       samples.forEach((p, i) => (i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y)));
       ctx.stroke(); ctx.setLineDash([]);
+
+      if (hasCycleTrack) {
+        strokeOffset(cycleTrackOffset, CYCLE_TRACK_COLOR, 3);
+        strokeOffset(-cycleTrackOffset, CYCLE_TRACK_COLOR, 3);
+      }
+      if (hasFootpath) {
+        strokeOffset(footpathOffset, FOOTPATH_COLOR, 4);
+        strokeOffset(-footpathOffset, FOOTPATH_COLOR, 4);
+      }
 
       if (vcRatio != null) {
         const speed = 0.0046 - vc * 0.0032; // more congested -> slower
@@ -128,7 +163,7 @@ export default function RoadFlowMap({ geometry, vcRatio, label, showTrees = true
       cancelAnimationFrame(frame);
       el.replaceChildren();
     };
-  }, [geometry, vcRatio, showTrees]);
+  }, [geometry, vcRatio, hasFootpath, hasCycleTrack, hasTrees]);
 
   if (!geometry || geometry.coordinates.length < 2) {
     return (
@@ -143,6 +178,12 @@ export default function RoadFlowMap({ geometry, vcRatio, label, showTrees = true
     <div>
       <div ref={container} data-testid="road-flow-map" className="h-40 w-full overflow-hidden rounded border border-slate-200" />
       <p className="mt-1 text-center text-xs text-slate-500">{label}</p>
+      <ul className="mt-1 flex flex-wrap justify-center gap-x-3 gap-y-0.5 text-[10px] text-slate-400" aria-label="Legend">
+        <li className="flex items-center gap-1"><span className="inline-block h-1.5 w-2.5 rounded-sm" style={{ background: "#64748b" }} />Lane</li>
+        {hasCycleTrack && <li className="flex items-center gap-1"><span className="inline-block h-1.5 w-2.5 rounded-sm" style={{ background: CYCLE_TRACK_COLOR }} />Cycle track</li>}
+        {hasFootpath && <li className="flex items-center gap-1"><span className="inline-block h-1.5 w-2.5 rounded-sm" style={{ background: FOOTPATH_COLOR }} />Footpath</li>}
+        {hasTrees && <li className="flex items-center gap-1"><span className="inline-block h-1.5 w-2.5 rounded-sm" style={{ background: "#2e8f6e" }} />Trees</li>}
+      </ul>
     </div>
   );
 }
